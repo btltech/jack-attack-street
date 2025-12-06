@@ -1,0 +1,5 @@
+{
+  "name": "Jack Attack Street",
+  "description": "A shedding card game where players match suits or ranks to clear their hand. Features special cards like 2s (pickup 2) and Black Jacks (pickup 5).",
+  "requestFramePermissions": []
+}
