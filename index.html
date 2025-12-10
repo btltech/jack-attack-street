@@ -3,30 +3,167 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Jack Attack Street</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Fredoka', 'sans-serif'],
-            },
-            colors: {
-              'brand-purple': '#6D28D9',
-              'brand-blue': '#4F46E5',
-              'brand-pink': '#DB2777',
-            }
-          }
+    <title>BTL Games - Play Fun Games Online</title>
+    <link rel="icon" type="image/png" href="/ayo/favicon-32.png" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        min-height: 100vh;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      
+      h1 {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .subtitle {
+        color: #9ca3af;
+        margin-bottom: 3rem;
+        font-size: 1.2rem;
+      }
+      
+      .games-container {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 900px;
+      }
+      
+      .game-card {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 2rem;
+        width: 300px;
+        text-align: center;
+        text-decoration: none;
+        color: white;
+        transition: transform 0.3s, box-shadow 0.3s;
+        border: 2px solid transparent;
+      }
+      
+      .game-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      }
+      
+      .game-card.ayo {
+        border-color: #008751;
+      }
+      
+      .game-card.ayo:hover {
+        background: rgba(0, 135, 81, 0.2);
+      }
+      
+      .game-card.jackattack {
+        border-color: #8b5cf6;
+      }
+      
+      .game-card.jackattack:hover {
+        background: rgba(139, 92, 246, 0.2);
+      }
+      
+      .game-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+      }
+      
+      .game-title {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+      }
+      
+      .game-description {
+        color: #9ca3af;
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+      
+      .play-btn {
+        display: inline-block;
+        margin-top: 1.5rem;
+        padding: 0.75rem 2rem;
+        border-radius: 50px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.9rem;
+      }
+      
+      .ayo .play-btn {
+        background: linear-gradient(90deg, #008751, #00a86b);
+      }
+      
+      .jackattack .play-btn {
+        background: linear-gradient(90deg, #8b5cf6, #6d28d9);
+      }
+      
+      footer {
+        margin-top: 3rem;
+        color: #6b7280;
+        font-size: 0.8rem;
+      }
+      
+      @media (max-width: 640px) {
+        h1 {
+          font-size: 2rem;
+        }
+        .games-container {
+          flex-direction: column;
+        }
+        .game-card {
+          width: 100%;
+          max-width: 300px;
         }
       }
-    </script>
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <h1>🎮 BTL Games</h1>
+    <p class="subtitle">Choose a game to play</p>
+    
+    <div class="games-container">
+      <a href="/ayo/" class="game-card ayo">
+        <div class="game-icon">🐚</div>
+        <div class="game-title">Ayò Ọlọ́pọ́n</div>
+        <p class="game-description">
+          Traditional Yorùbá Mancala strategy game. 
+          Outsmart the AI in this ancient African board game!
+        </p>
+        <span class="play-btn">Play Now</span>
+      </a>
+      
+      <a href="/jackattack/" class="game-card jackattack">
+        <div class="game-icon">🃏</div>
+        <div class="game-title">Jack Attack Street</div>
+        <p class="game-description">
+          Fun card game with power-ups, daily challenges, 
+          themes and more!
+        </p>
+        <span class="play-btn">Play Now</span>
+      </a>
+    </div>
+    
+    <footer>
+      © 2025 BTL Tech - Made with ❤️
+    </footer>
   </body>
 </html>

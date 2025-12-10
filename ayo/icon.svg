@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Gradient for the background -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a5a32"/>
+      <stop offset="100%" style="stop-color:#008751"/>
+    </linearGradient>
+    <!-- Gradient for cowrie shell -->
+    <linearGradient id="shellGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fff8e7"/>
+      <stop offset="50%" style="stop-color:#f5e6c8"/>
+      <stop offset="100%" style="stop-color:#e8d4a8"/>
+    </linearGradient>
+    <!-- Gold accent gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
+    </linearGradient>
+    <!-- Shadow filter -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background circle with Nigeria green -->
+  <circle cx="256" cy="256" r="240" fill="url(#bgGrad)"/>
+  
+  <!-- Decorative ring -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#goldGrad)" stroke-width="4" opacity="0.6"/>
+  
+  <!-- Main Cowrie Shell -->
+  <g transform="translate(256, 256) rotate(-15)" filter="url(#shadow)">
+    <!-- Shell body - main oval -->
+    <ellipse cx="0" cy="0" rx="100" ry="140" fill="url(#shellGrad)"/>
+    
+    <!-- Shell ridge/opening (the characteristic cowrie slit) -->
+    <path d="M -8 -120 
+             Q -15 -60 -12 0 
+             Q -15 60 -8 120
+             L 8 120
+             Q 15 60 12 0
+             Q 15 -60 8 -120
+             Z" 
+          fill="#8B5A2B" opacity="0.8"/>
+    
+    <!-- Teeth marks on the opening -->
+    <g fill="#5D3A1A">
+      <rect x="-6" y="-110" width="12" height="6" rx="2"/>
+      <rect x="-6" y="-95" width="12" height="6" rx="2"/>
+      <rect x="-6" y="-80" width="12" height="6" rx="2"/>
+      <rect x="-6" y="-65" width="12" height="6" rx="2"/>
+      <rect x="-6" y="-50" width="12" height="6" rx="2"/>
+      <rect x="-6" y="-35" width="12" height="6" rx="2"/>
+      <rect x="-6" y="-20" width="12" height="6" rx="2"/>
+      <rect x="-6" y="-5" width="12" height="6" rx="2"/>
+      <rect x="-6" y="10" width="12" height="6" rx="2"/>
+      <rect x="-6" y="25" width="12" height="6" rx="2"/>
+      <rect x="-6" y="40" width="12" height="6" rx="2"/>
+      <rect x="-6" y="55" width="12" height="6" rx="2"/>
+      <rect x="-6" y="70" width="12" height="6" rx="2"/>
+      <rect x="-6" y="85" width="12" height="6" rx="2"/>
+      <rect x="-6" y="100" width="12" height="6" rx="2"/>
+    </g>
+    
+    <!-- Shell shine/highlight -->
+    <ellipse cx="-40" cy="-40" rx="25" ry="40" fill="white" opacity="0.3"/>
+    <ellipse cx="50" cy="20" rx="15" ry="30" fill="white" opacity="0.2"/>
+  </g>
+  
+  <!-- Decorative smaller cowries around -->
+  <g opacity="0.7">
+    <!-- Top left cowrie -->
+    <g transform="translate(100, 120) rotate(-30) scale(0.25)">
+      <ellipse cx="0" cy="0" rx="100" ry="140" fill="url(#shellGrad)"/>
+      <path d="M -8 -120 Q -15 0 -8 120 L 8 120 Q 15 0 8 -120 Z" fill="#8B5A2B" opacity="0.8"/>
+    </g>
+    <!-- Top right cowrie -->
+    <g transform="translate(412, 120) rotate(30) scale(0.25)">
+      <ellipse cx="0" cy="0" rx="100" ry="140" fill="url(#shellGrad)"/>
+      <path d="M -8 -120 Q -15 0 -8 120 L 8 120 Q 15 0 8 -120 Z" fill="#8B5A2B" opacity="0.8"/>
+    </g>
+    <!-- Bottom left cowrie -->
+    <g transform="translate(100, 392) rotate(-45) scale(0.25)">
+      <ellipse cx="0" cy="0" rx="100" ry="140" fill="url(#shellGrad)"/>
+      <path d="M -8 -120 Q -15 0 -8 120 L 8 120 Q 15 0 8 -120 Z" fill="#8B5A2B" opacity="0.8"/>
+    </g>
+    <!-- Bottom right cowrie -->
+    <g transform="translate(412, 392) rotate(45) scale(0.25)">
+      <ellipse cx="0" cy="0" rx="100" ry="140" fill="url(#shellGrad)"/>
+      <path d="M -8 -120 Q -15 0 -8 120 L 8 120 Q 15 0 8 -120 Z" fill="#8B5A2B" opacity="0.8"/>
+    </g>
+  </g>
+</svg>
