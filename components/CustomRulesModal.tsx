@@ -85,6 +85,17 @@ interface CustomRulesModalProps {
 const CustomRulesModal: React.FC<CustomRulesModalProps> = ({ onClose, rules, onRulesChange }) => {
     const [localRules, setLocalRules] = useState<GameRules>(rules);
 
+    // Handle Escape key to close modal
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
     const handleChange = (key: keyof GameRules, value: boolean) => {
         const newRules = { ...localRules, [key]: value };
         setLocalRules(newRules);
@@ -113,43 +124,59 @@ const CustomRulesModal: React.FC<CustomRulesModalProps> = ({ onClose, rules, onR
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
-            <div className="bg-gradient-to-br from-indigo-900 to-purple-900 text-white p-6 rounded-[2rem] max-w-md w-full relative shadow-2xl border-4 border-yellow-400 max-h-[90vh] overflow-y-auto">
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-3xl hover:rotate-90 transition-transform"
-                >
-                    ❌
-                </button>
+            <div className="bg-gradient-to-br from-indigo-900 to-purple-900 text-white rounded-[2rem] max-w-md w-full relative shadow-2xl border-4 border-yellow-400 max-h-[90vh] overflow-hidden flex flex-col">
+                {/* Sticky Header */}
+                <div className="sticky top-0 z-10 bg-gradient-to-br from-indigo-900 to-purple-900 p-6 pb-4 border-b border-white/10">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 text-3xl hover:rotate-90 transition-transform"
+                        aria-label="Close modal"
+                    >
+                        ❌
+                    </button>
 
-                <h3 className="text-2xl font-black mb-4 text-center text-yellow-400">⚙️ Custom Rules</h3>
-                <p className="text-sm text-purple-300 text-center mb-4">Toggle special card abilities on/off</p>
-
-                <div className="bg-white/10 rounded-xl p-4 mb-4">
-                    {ruleItems.map((item) => (
-                        <RuleToggle
-                            key={item.key}
-                            label={item.label}
-                            emoji={item.emoji}
-                            description={item.description}
-                            enabled={localRules[item.key]}
-                            onChange={(val) => handleChange(item.key, val)}
-                        />
-                    ))}
+                    <h3 className="text-2xl font-black text-center text-yellow-400">⚙️ Custom Rules</h3>
+                    <p className="text-sm text-purple-300 text-center mt-2">Toggle special card abilities on/off</p>
                 </div>
 
-                <div className="flex gap-3">
-                    <button
-                        onClick={handleReset}
-                        className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 rounded-xl border-b-4 border-gray-800"
-                    >
-                        Reset
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        className="flex-1 bg-green-500 hover:bg-green-400 text-white font-bold py-3 rounded-xl border-b-4 border-green-700"
-                    >
-                        Save Rules
-                    </button>
+                {/* Scrollable Content */}
+                <div className="overflow-y-auto flex-1 p-6 pt-4">
+                    <div className="bg-white/10 rounded-xl p-4 mb-4">
+                        {ruleItems.map((item) => (
+                            <RuleToggle
+                                key={item.key}
+                                label={item.label}
+                                emoji={item.emoji}
+                                description={item.description}
+                                enabled={localRules[item.key]}
+                                onChange={(val) => handleChange(item.key, val)}
+                            />
+                        ))}
+                    </div>
+                </div>
+
+                {/* Sticky Footer with Buttons */}
+                <div className="sticky bottom-0 bg-gradient-to-br from-indigo-900 to-purple-900 p-6 pt-4 border-t border-white/10">
+                    <div className="flex gap-3">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 rounded-xl border-b-4 border-gray-800"
+                        >
+                            Close
+                        </button>
+                        <button
+                            onClick={handleReset}
+                            className="flex-1 bg-orange-500 hover:bg-orange-400 text-white font-bold py-3 rounded-xl border-b-4 border-orange-700"
+                        >
+                            Reset
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="flex-1 bg-green-500 hover:bg-green-400 text-white font-bold py-3 rounded-xl border-b-4 border-green-700"
+                        >
+                            Save
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

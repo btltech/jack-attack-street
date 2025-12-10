@@ -1,6 +1,6 @@
 // components/PowerUpShop.tsx - Shop Modal for purchasing power-ups
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { powerUpCatalog, PowerUp, PowerUpInventory, loadInventory, purchasePowerUp, getRarityColor, getRarityBg } from '../core/powerups';
 import { playClickSound, playCoinsSound } from '../core/sounds';
 
@@ -13,6 +13,17 @@ interface PowerUpShopProps {
 const PowerUpShop: React.FC<PowerUpShopProps> = ({ coins, onPurchase, onClose }) => {
     const [inventory, setInventory] = useState<PowerUpInventory>(loadInventory());
     const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
+
+    // Handle Escape key to close modal
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
 
     const handlePurchase = (powerUp: PowerUp) => {
         playClickSound();
@@ -42,17 +53,27 @@ const PowerUpShop: React.FC<PowerUpShopProps> = ({ coins, onPurchase, onClose })
 
                 <h3 className="text-3xl font-black mb-2 text-center text-yellow-400">🛒 Power-Up Shop</h3>
 
-                {/* Coin Balance */}
+                {/* Coin Balance with Tooltip */}
                 <div className="flex justify-center mb-4">
-                    <div className="bg-yellow-400 text-black px-6 py-2 rounded-full font-bold border-b-4 border-yellow-600 flex items-center gap-2 text-lg">
+                    <div
+                        className="bg-yellow-400 text-black px-6 py-2 rounded-full font-bold border-b-4 border-yellow-600 flex items-center gap-2 text-lg cursor-help"
+                        title="Earn coins by winning games! +10 for wins, +25 for Hard wins, +5 bonus for win streaks."
+                    >
                         <span className="text-2xl">🪙</span>
                         <span>{coins}</span>
                     </div>
                 </div>
 
-                {/* Purchase Message */}
+                {/* 0 Coins Message */}
+                {coins === 0 && (
+                    <div className="text-center mb-4 bg-blue-500/20 border border-blue-400/50 rounded-xl p-3">
+                        <p className="text-blue-200 text-sm font-bold">💡 Win games to earn coins and buy power-ups!</p>
+                    </div>
+                )}
+
+                {/* Purchase Confirmation Toast */}
                 {purchaseMessage && (
-                    <div className="text-center mb-4 animate-bounce font-bold text-lg">
+                    <div className={`text-center mb-4 font-bold text-lg p-3 rounded-xl ${purchaseMessage.includes('✅') ? 'bg-green-500/30 border border-green-400' : 'bg-red-500/30 border border-red-400'}`}>
                         {purchaseMessage}
                     </div>
                 )}

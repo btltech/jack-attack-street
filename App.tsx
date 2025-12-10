@@ -62,6 +62,7 @@ const App: React.FC = () => {
   // Animation State
   const [flyingCard, setFlyingCard] = useState<FlyingCardState | null>(null);
   const [hiddenCardId, setHiddenCardId] = useState<string | null>(null);
+  const [isSorting, setIsSorting] = useState<boolean>(false); // Sort animation state
 
   // Visual Effects State
   const [isShaking, setIsShaking] = useState<boolean>(false);
@@ -393,11 +394,21 @@ const App: React.FC = () => {
   };
 
   const handleSortClick = () => {
-    if (view !== 'playing' || !gameState) return;
-    const newState = { ...gameState, players: [...gameState.players] };
-    const p = newState.players[0];
-    p.hand = sortHand(p.hand);
-    setGameState(newState);
+    if (view !== 'playing' || !gameState || isSorting) return;
+
+    // Trigger sort animation
+    setIsSorting(true);
+
+    setTimeout(() => {
+      const newState = { ...gameState, players: [...gameState.players] };
+      const p = newState.players[0];
+      p.hand = sortHand(p.hand);
+      setGameState(newState);
+
+      setTimeout(() => {
+        setIsSorting(false);
+      }, 300);
+    }, 150);
   };
 
   const getPlayerPosition = (index: number, total: number) => {
@@ -791,6 +802,21 @@ const App: React.FC = () => {
         .card-enter {
           animation: card-slide-in 0.3s ease-out forwards;
         }
+        @keyframes sort-shuffle {
+          0% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-20px) rotate(5deg); }
+          100% { transform: translateY(0) rotate(0deg); }
+        }
+        .sorting-card {
+          animation: sort-shuffle 0.3s ease-in-out;
+        }
+        @keyframes toast-slide-in {
+          0% { transform: translateX(-100%); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        .toast-enter {
+          animation: toast-slide-in 0.3s ease-out forwards;
+        }
       `}</style>
 
       {/* POWER-UP MODALS */}
@@ -857,8 +883,9 @@ const App: React.FC = () => {
               toggleBackgroundMusic();
               setMusicEnabled(!musicEnabled);
             }}
-            className="bg-black/30 backdrop-blur px-3 py-2 rounded-full text-white font-bold border border-white/20 hover:bg-white/20 transition-all text-xl"
-            title={musicEnabled ? 'Mute Music' : 'Play Music'}
+            className={`backdrop-blur px-3 py-2 rounded-full font-bold border transition-all text-xl ${musicEnabled ? 'bg-green-500/50 border-green-400' : 'bg-black/30 border-white/20'}`}
+            title="Toggle commentary & sound"
+            aria-label={musicEnabled ? 'Sound enabled - click to mute' : 'Sound muted - click to enable'}
           >
             {musicEnabled ? '🔊' : '🔇'}
           </button>
@@ -866,7 +893,8 @@ const App: React.FC = () => {
             onClick={() => setHintsEnabled(!hintsEnabled)}
             className={`backdrop-blur px-3 py-2 rounded-full font-bold border transition-all text-xl ${hintsEnabled ? 'bg-green-500/50 border-green-400' : 'bg-black/30 border-white/20'
               }`}
-            title={hintsEnabled ? 'Disable Hints' : 'Enable Hints'}
+            title="Show a tip for this turn"
+            aria-label={hintsEnabled ? 'Hints enabled - click to disable' : 'Hints disabled - click to enable'}
           >
             💡
           </button>
@@ -877,9 +905,9 @@ const App: React.FC = () => {
       {/* HAND HINTS */}
       <HandHints gameState={gameState} enabled={hintsEnabled} />
 
-      {/* ERROR MESSAGE / TOAST */}
+      {/* ERROR MESSAGE / TOAST - Small top-left notification */}
       {errorMsg && (
-        <div className="fixed top-32 left-1/2 -translate-x-1/2 z-[60] w-max max-w-[90%] bg-red-500 text-white px-8 py-4 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] animate-bounce text-center border-4 border-white font-black text-xl rotate-[-2deg]">
+        <div className="fixed top-4 left-4 z-[60] max-w-xs bg-red-500/95 text-white px-4 py-2 rounded-xl shadow-lg toast-enter border-2 border-red-300 font-bold text-sm backdrop-blur-sm">
           {errorMsg}
         </div>
       )}
@@ -920,16 +948,16 @@ const App: React.FC = () => {
 
             <div className={`w-24 h-36 md:w-32 md:h-48 bg-white text-black rounded-2xl shadow-2xl flex flex-col items-center justify-center border-b-8 border-r-8 border-gray-300 relative overflow-hidden transform rotate-3 transition-transform`}>
               <span className="font-black text-6xl md:text-7xl z-10 drop-shadow-sm">{topCard.rank}</span>
-              <span className={`absolute text-[9rem] opacity-10 ${['♥', '♦'].includes(topCard.suit) ? 'text-red-500' : 'text-black'}`}>{topCard.suit}</span>
+              <span className={`absolute text-[9rem] opacity-10 ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
 
-              {/* Corner Indices */}
-              <div className="absolute top-2 left-2 flex flex-col items-center leading-none">
-                <span className="text-xl font-bold">{topCard.rank}</span>
-                <span className={`text-2xl ${['♥', '♦'].includes(topCard.suit) ? 'text-red-500' : 'text-black'}`}>{topCard.suit}</span>
+              {/* Corner Indices - Large and High Contrast */}
+              <div className="absolute top-1.5 left-2 flex flex-col items-center leading-none">
+                <span className={`text-2xl md:text-3xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.rank}</span>
+                <span className={`text-3xl md:text-4xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
               </div>
-              <div className="absolute bottom-2 right-2 flex flex-col items-center leading-none transform rotate-180">
-                <span className="text-xl font-bold">{topCard.rank}</span>
-                <span className={`text-2xl ${['♥', '♦'].includes(topCard.suit) ? 'text-red-500' : 'text-black'}`}>{topCard.suit}</span>
+              <div className="absolute bottom-1.5 right-2 flex flex-col items-center leading-none transform rotate-180">
+                <span className={`text-2xl md:text-3xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.rank}</span>
+                <span className={`text-3xl md:text-4xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
               </div>
             </div>
             <p className="mt-4 text-sm font-bold text-indigo-200 bg-black/30 px-3 py-1 rounded-full">Top Card</p>
@@ -1005,9 +1033,13 @@ const App: React.FC = () => {
             const isRed = ['♥', '♦'].includes(card.suit);
             const isHidden = card.id === hiddenCardId;
 
+            // High-contrast suit colors
+            const suitColor = isRed ? 'text-red-600' : 'text-gray-900';
+
             return (
               <div
                 key={card.id}
+                data-card-id={card.id} // Add data attribute for easier ref finding
                 onClick={(e) => handleCardClick(e, card)}
                 style={{
                   marginBottom: playable ? '40px' : '0px',
@@ -1015,16 +1047,19 @@ const App: React.FC = () => {
                   opacity: isHidden ? 0 : 1,
                   transform: `rotate(${(i - humanPlayer.hand.length / 2) * 2}deg)` // Slight fan effect
                 }}
-                className={`${getCardStyles(card, playable, isRed)} ${playable ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-purple-800 playable-card-glow' : ''} ${mustPickup && !playable ? 'grayscale opacity-60' : ''} ${canStack ? 'ring-red-500 animate-pulse' : ''}`}
+                className={`${getCardStyles(card, playable, isRed)} ${playable ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-purple-800 playable-card-glow' : ''} ${mustPickup && !playable ? 'grayscale opacity-60' : ''} ${canStack ? 'ring-red-500 animate-pulse' : ''} ${isSorting ? 'sorting-card' : ''}`}
               >
+                {/* Top-left corner - Large rank and suit */}
                 <div className="flex flex-col items-center leading-none self-start">
-                  <span className="font-black text-2xl">{card.rank}</span>
-                  <span className={`text-3xl ${isRed ? 'text-red-500' : 'text-black'}`}>{card.suit}</span>
+                  <span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span>
+                  <span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span>
                 </div>
-                <div className={`absolute inset-0 flex items-center justify-center text-7xl opacity-10 pointer-events-none ${isRed ? 'text-red-500' : 'text-black'}`}>{card.suit}</div>
+                {/* Center watermark */}
+                <div className={`absolute inset-0 flex items-center justify-center text-7xl opacity-10 pointer-events-none ${suitColor}`}>{card.suit}</div>
+                {/* Bottom-right corner - Large rank and suit (rotated) */}
                 <div className="flex flex-col items-center leading-none self-end transform rotate-180">
-                  <span className="font-black text-2xl">{card.rank}</span>
-                  <span className={`text-3xl ${isRed ? 'text-red-500' : 'text-black'}`}>{card.suit}</span>
+                  <span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span>
+                  <span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span>
                 </div>
               </div>
             );
@@ -1071,12 +1106,13 @@ const FlyingCardComponent: React.FC<FlyingCardState> = ({ card, start, end, face
   }
 
   const isRed = ['♥', '♦'].includes(card.suit);
+  const suitColor = isRed ? 'text-red-600' : 'text-gray-900';
 
   return (
     <div onTransitionEnd={onComplete} style={style} className="bg-white rounded-2xl border-b-4 border-gray-300 flex flex-col justify-between p-2 pointer-events-none">
-      <div className="flex flex-col items-center leading-none self-start"><span className="font-black text-2xl">{card.rank}</span><span className={`text-3xl ${isRed ? 'text-red-500' : 'text-black'}`}>{card.suit}</span></div>
-      <div className={`absolute inset-0 flex items-center justify-center text-7xl opacity-10 ${isRed ? 'text-red-500' : 'text-black'}`}>{card.suit}</div>
-      <div className="flex flex-col items-center leading-none self-end transform rotate-180"><span className="font-black text-2xl">{card.rank}</span><span className={`text-3xl ${isRed ? 'text-red-500' : 'text-black'}`}>{card.suit}</span></div>
+      <div className="flex flex-col items-center leading-none self-start"><span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span><span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span></div>
+      <div className={`absolute inset-0 flex items-center justify-center text-7xl opacity-10 ${suitColor}`}>{card.suit}</div>
+      <div className="flex flex-col items-center leading-none self-end transform rotate-180"><span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span><span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span></div>
     </div>
   );
 };
