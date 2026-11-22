@@ -20,10 +20,30 @@ export const createDeck = (): Card[] => {
   return deck;
 };
 
-export const shuffleDeck = (deck: Card[]): Card[] => {
+const hashSeed = (str: string): number => {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return h >>> 0;
+};
+
+const createSeededRng = (seed: string): (() => number) => {
+  let a = hashSeed(seed) || 1;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+export const shuffleDeck = (deck: Card[], rng: () => number = Math.random): Card[] => {
   const newDeck = [...deck];
   for (let i = newDeck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
   }
   return newDeck;
@@ -83,19 +103,21 @@ export const createNewGame = (
   numPlayers: number = 4,
   difficulty: Difficulty = Difficulty.Medium,
   gameMode: GameMode = GameMode.VsBot,
-  playerNames?: string[]
+  playerNames?: string[],
+  seed?: string
 ): GameState => {
   if (numPlayers < 2) numPlayers = 2;
   if (numPlayers > 4) numPlayers = 4;
 
+  const rng = seed ? createSeededRng(seed) : Math.random;
   let deck = createDeck();
-  deck = shuffleDeck(deck);
+  deck = shuffleDeck(deck, rng);
 
   const players: Player[] = [];
   const handSize = 7;
 
   // Shuffle avatars for this game
-  const shuffledAvatars = [...BOT_AVATARS].sort(() => Math.random() - 0.5);
+  const shuffledAvatars = [...BOT_AVATARS].sort(() => rng() - 0.5);
 
   for (let i = 0; i < numPlayers; i++) {
     // In local multiplayer, all players are human

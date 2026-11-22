@@ -17,7 +17,9 @@ import HandHints from './components/HandHints';
 import PowerUpShop from './components/PowerUpShop';
 import PersonalityPicker from './components/PersonalityPicker';
 import OnlineRoom from './components/OnlineRoom';
+import DailyLeaderboardModal from './components/DailyLeaderboardModal';
 import { createOnlineRoom, loadNickname, saveNickname } from './core/online';
+import { getDailySeed, getTodayUtcKey, submitDailyScore } from './core/dailyLeaderboard';
 import { getTodaysChallenge, getDailyProgress, checkChallengeCompletion } from './core/challenges';
 import { getCurrentTheme, CardTheme } from './core/themes';
 import { PersonalityType, getCurrentPersonality, getStyledCommentary } from './core/commentaryPersonalities';
@@ -104,6 +106,11 @@ const App: React.FC = () => {
   const [onlineBusy, setOnlineBusy] = useState<boolean>(false);
   const [onlineError, setOnlineError] = useState<string | null>(null);
 
+  // Same-seed Daily Challenge + D1 Leaderboard state
+  const [showDailyBoard, setShowDailyBoard] = useState<boolean>(false);
+  const [isDailySeedRun, setIsDailySeedRun] = useState<boolean>(false);
+  const [dailyRankResult, setDailyRankResult] = useState<{ rank: number; total: number; improved: boolean; day: string } | null>(null);
+
   // Game tracking for enhanced stats
   const gameStartTimeRef = useRef<number>(0);
   const cardsPlayedRef = useRef<number>(0);
@@ -123,6 +130,8 @@ const App: React.FC = () => {
       setMenuTab('online');
       setActiveRoomCode(roomParam);
       setView('online');
+    } else if (params.get('daily') === '1') {
+      setShowDailyBoard(true);
     }
   }, []);
 
@@ -187,6 +196,23 @@ const App: React.FC = () => {
   const updateStats = (isWin: boolean, state: GameState) => {
     const duration = Date.now() - gameStartTimeRef.current;
     setLastMatchDurationMs(duration);
+
+    if (isWin && isDailySeedRun) {
+      const today = getTodayUtcKey();
+      submitDailyScore({
+        day: today,
+        name: loadNickname() || nickname || 'Player',
+        durationMs: duration,
+        cardsPlayed: cardsPlayedRef.current,
+      })
+        .then((res) => {
+          setDailyRankResult({ rank: res.rank, total: res.total, improved: res.improved, day: res.day });
+        })
+        .catch(() => {
+          // Non-blocking if offline
+        });
+    }
+
     if (!stats) return;
 
     const newStats = recordGame(stats, {
@@ -334,12 +360,19 @@ const App: React.FC = () => {
     }
   };
 
-  const startNewGame = (numPlayers: number, difficulty: Difficulty, gameMode: GameMode = GameMode.VsBot) => {
+  const startNewGame = (
+    numPlayers: number,
+    difficulty: Difficulty,
+    gameMode: GameMode = GameMode.VsBot,
+    dailySeed?: string
+  ) => {
     initAudio();
     playShuffleSound();
     localStorage.setItem('jack-attack-difficulty', difficulty);
-    const initialState = createNewGame(numPlayers, difficulty, gameMode);
+    const initialState = createNewGame(numPlayers, difficulty, gameMode, undefined, dailySeed);
     setGameState(initialState);
+    setIsDailySeedRun(Boolean(dailySeed));
+    setDailyRankResult(null);
     setErrorMsg(null);
     setShowConfetti(false);
     setCurrentCommentary(null);
@@ -560,6 +593,14 @@ const App: React.FC = () => {
                   className="bg-purple-500 hover:bg-purple-400 text-white px-3.5 py-2 rounded-full font-bold text-sm border-b-4 border-purple-700 transition-all shrink-0"
                 >
                   📊 Stats
+                </button>
+                <button
+                  onClick={() => { playClickSound(); setShowDailyBoard(true); }}
+                  title="Daily Seed Leaderboard"
+                  aria-label="Daily Seed Leaderboard"
+                  className="bg-amber-400 hover:bg-amber-300 text-black px-3.5 py-2 rounded-full font-black text-sm border-b-4 border-amber-600 transition-all shrink-0"
+                >
+                  🏆 Daily
                 </button>
                 <button
                   onClick={() => { playClickSound(); setShowThemePicker(true); }}
@@ -886,6 +927,18 @@ const App: React.FC = () => {
             onPersonalityChange={setPersonality}
           />
         )}
+
+        {/* Daily Seed Leaderboard Modal */}
+        {showDailyBoard && (
+          <DailyLeaderboardModal
+            onClose={() => setShowDailyBoard(false)}
+            onPlayDailySeed={(name) => {
+              setNickname(name);
+              setShowDailyBoard(false);
+              startNewGame(2, Difficulty.Medium, GameMode.VsBot, getDailySeed());
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -896,7 +949,9 @@ const App: React.FC = () => {
     const isHumanWinner = gameState.winnerId === humanPlayer.id;
     const winner = gameState.players.find(p => p.id === gameState.winnerId);
     const shareText = isHumanWinner
-      ? `🃏 I just won Jack Attack Street (${gameState.difficulty.toUpperCase()}) in ${formatDuration(lastMatchDurationMs)} playing ${cardsPlayedRef.current} cards! 🏆 Can you beat me?\nhttps://www.jackattackstreets.com/jackattack/`
+      ? isDailySeedRun
+        ? `🃏 Jack Attack Street — Daily ${dailyRankResult?.day || getTodayUtcKey()}\n🏆 ${dailyRankResult ? `Ranked #${dailyRankResult.rank} of ${dailyRankResult.total}` : 'Cleared!'} • ⏱️ ${formatDuration(lastMatchDurationMs)} • 🃏 ${cardsPlayedRef.current} cards\nSame deck for everyone — can you beat my time?\nhttps://www.jackattackstreets.com/jackattack/?daily=1`
+        : `🃏 I just won Jack Attack Street (${gameState.difficulty.toUpperCase()}) in ${formatDuration(lastMatchDurationMs)} playing ${cardsPlayedRef.current} cards! 🏆 Can you beat me?\nhttps://www.jackattackstreets.com/jackattack/`
       : `🃏 Just played a wild match of Jack Attack Street! Think you can beat ${winner?.name || 'the bots'}?\nhttps://www.jackattackstreets.com/jackattack/`;
 
     const handleShareResult = async () => {
@@ -931,6 +986,12 @@ const App: React.FC = () => {
           <div className="text-7xl sm:text-8xl mb-4 filter drop-shadow-lg animate-bounce">{isHumanWinner ? "🏆" : "😭"}</div>
           <h1 className="text-5xl sm:text-6xl font-black mb-3 drop-shadow-lg text-yellow-400">{isHumanWinner ? "YOU WON!" : "GAME OVER"}</h1>
           <p className="text-xl sm:text-2xl font-bold mb-5 text-pink-100">{isHumanWinner ? "You're the King of the Street!" : `${winner?.avatar} ${winner?.name} won this time!`}</p>
+
+          {isHumanWinner && isDailySeedRun && dailyRankResult && (
+            <div className="mb-5 bg-yellow-400/20 border-2 border-yellow-400 rounded-2xl px-4 py-2.5 text-yellow-200 font-black text-sm">
+              🏆 Daily Seed Rank: #{dailyRankResult.rank} of {dailyRankResult.total} {dailyRankResult.improved ? '(New Best!)' : ''}
+            </div>
+          )}
 
           {/* Match Summary */}
           <div className="flex justify-center gap-3 mb-6 text-sm">

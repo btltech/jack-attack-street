@@ -10,3 +10,8 @@ bindings = [
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jack-attack-daily"
+database_id = "b31cbc78-36bb-4446-8710-8a306540dce4"

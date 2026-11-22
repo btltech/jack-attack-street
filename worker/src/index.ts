@@ -2,12 +2,49 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
   RoomData, ClientMsg, ServerMsg,
-  newRoom, join, disconnect, start, act, tick, view,
+  newRoom, join, disconnect, start, act, tick, view, cleanName,
 } from '../../core/roomEngine';
 
 export interface Env {
   ROOMS: DurableObjectNamespace<GameRoom>;
+  DB: D1Database;
 }
+
+const getUtcDay = (): string => new Date().toISOString().slice(0, 10);
+const isValidDay = (d: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(d);
+
+interface DailyScoreRow {
+  guest_id: string;
+  name: string;
+  duration_ms: number;
+  cards_played: number;
+}
+
+const fetchTopScores = async (db: D1Database, day: string) => {
+  const { results } = await db
+    .prepare(
+      'SELECT guest_id, name, duration_ms, cards_played FROM daily_scores WHERE day = ? ORDER BY duration_ms ASC, cards_played ASC, created_at ASC LIMIT 20'
+    )
+    .bind(day)
+    .all<DailyScoreRow>();
+
+  const countRow = await db
+    .prepare('SELECT COUNT(*) as total FROM daily_scores WHERE day = ?')
+    .bind(day)
+    .first<{ total: number }>();
+
+  return {
+    day,
+    total: Number(countRow?.total ?? 0),
+    entries: (results || []).map((row, i) => ({
+      rank: i + 1,
+      guestId: row.guest_id,
+      name: row.name,
+      durationMs: row.duration_ms,
+      cardsPlayed: row.cards_played,
+    })),
+  };
+};
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -51,6 +88,87 @@ export default {
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
       const code = generateRoomCode();
       return jsonResponse({ code }, 200, origin);
+    }
+
+    // Daily Challenge Leaderboard: GET /api/daily/:day/leaderboard (or /api/daily/leaderboard)
+    const lbMatch = url.pathname.match(/^\/api\/daily(?:\/(\d{4}-\d{2}-\d{2}))?\/leaderboard$/);
+    if (lbMatch && request.method === 'GET') {
+      const day = lbMatch[1] || getUtcDay();
+      if (!isValidDay(day)) return jsonResponse({ error: 'Invalid day' }, 400, origin);
+      const data = await fetchTopScores(env.DB, day);
+      return jsonResponse(data, 200, origin);
+    }
+
+    // Submit Daily Challenge score: POST /api/daily/score
+    if (url.pathname === '/api/daily/score' && request.method === 'POST') {
+      let body: { day?: string; guestId?: string; name?: string; durationMs?: number; cardsPlayed?: number };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
+      }
+
+      const day = body.day && isValidDay(body.day) ? body.day : getUtcDay();
+      const guestId = String(body.guestId || '').trim().slice(0, 64);
+      const name = cleanName(body.name);
+      const durationMs = Math.floor(Number(body.durationMs));
+      const cardsPlayed = Math.floor(Number(body.cardsPlayed));
+
+      if (!guestId) return jsonResponse({ error: 'Missing guestId' }, 400, origin);
+      if (!Number.isFinite(durationMs) || durationMs < 2000 || durationMs > 3600000) {
+        return jsonResponse({ error: 'Invalid durationMs' }, 400, origin);
+      }
+      if (!Number.isFinite(cardsPlayed) || cardsPlayed < 1 || cardsPlayed > 300) {
+        return jsonResponse({ error: 'Invalid cardsPlayed' }, 400, origin);
+      }
+
+      const existing = await env.DB
+        .prepare('SELECT duration_ms, cards_played FROM daily_scores WHERE day = ? AND guest_id = ?')
+        .bind(day, guestId)
+        .first<{ duration_ms: number; cards_played: number }>();
+
+      const improved = !existing || durationMs < existing.duration_ms ||
+        (durationMs === existing.duration_ms && cardsPlayed < existing.cards_played);
+
+      if (improved) {
+        await env.DB
+          .prepare(
+            `INSERT INTO daily_scores (day, guest_id, name, duration_ms, cards_played, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(day, guest_id) DO UPDATE SET
+               name = excluded.name,
+               duration_ms = excluded.duration_ms,
+               cards_played = excluded.cards_played,
+               created_at = excluded.created_at`
+          )
+          .bind(day, guestId, name, durationMs, cardsPlayed, Date.now())
+          .run();
+      } else {
+        // Still update nickname if changed
+        await env.DB
+          .prepare('UPDATE daily_scores SET name = ? WHERE day = ? AND guest_id = ?')
+          .bind(name, day, guestId)
+          .run();
+      }
+
+      const bestDuration = improved ? durationMs : existing!.duration_ms;
+      const bestCards = improved ? cardsPlayed : existing!.cards_played;
+
+      const betterCount = await env.DB
+        .prepare(
+          'SELECT COUNT(*) as c FROM daily_scores WHERE day = ? AND (duration_ms < ? OR (duration_ms = ? AND cards_played < ?))'
+        )
+        .bind(day, bestDuration, bestDuration, bestCards)
+        .first<{ c: number }>();
+
+      const board = await fetchTopScores(env.DB, day);
+      return jsonResponse({
+        ok: true,
+        improved,
+        rank: Number(betterCount?.c ?? 0) + 1,
+        bestDurationMs: bestDuration,
+        ...board,
+      }, 200, origin);
     }
 
     // WebSocket connection to a room: /api/rooms/:code/ws

@@ -25,7 +25,9 @@
     <meta name="twitter:description" content="Play Jack Attack Street card game &amp; Ayò Ọlọ́pọ́n Yorùbá Mancala free in your browser. Instant play!" />
     <meta name="twitter:image" content="https://www.jackattackstreets.com/og-home.png" />
 
-    <link rel="icon" type="image/png" href="/ayo/favicon-32.png" />
+    <link rel="manifest" href="/jackattack-manifest.json" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -257,7 +259,18 @@
     </section>
 
     <footer>
+      <p style="margin-bottom: 0.5rem;">
+        <a href="/rules/" style="color: #cbd5e1; text-decoration: underline; margin: 0 8px;">Jack Attack Rules</a> •
+        <a href="/ayo-rules/" style="color: #cbd5e1; text-decoration: underline; margin: 0 8px;">Ayò Ọlọ́pọ́n Rules</a>
+      </p>
       © 2026 Classic Street Games — Made with ❤️
     </footer>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>
