@@ -315,6 +315,18 @@ export class GameRoom extends DurableObject<Env> {
       return;
     }
 
+    if (msg.t === 'react') {
+      const allowed = ['😂', '😱', '🔥', '💀', '👑', '👏', 'NOOO!'];
+      const emoji = allowed.includes(msg.emoji) ? msg.emoji : null;
+      const seatIdx = room.seats.findIndex(s => !s.isBot && s.id === att.id);
+      if (emoji && seatIdx >= 0) {
+        for (const sock of this.ctx.getWebSockets()) {
+          this.send(sock, { t: 'react', seat: seatIdx, emoji });
+        }
+      }
+      return;
+    }
+
     const res = act(room, att.id, msg, now);
     if (!res.ok) {
       this.send(ws, { t: 'error', error: res.error });

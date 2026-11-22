@@ -18,10 +18,13 @@ import PowerUpShop from './components/PowerUpShop';
 import PersonalityPicker from './components/PersonalityPicker';
 import OnlineRoom from './components/OnlineRoom';
 import DailyLeaderboardModal from './components/DailyLeaderboardModal';
+import PlayingCard, { getThemeCardBackStyle } from './components/PlayingCard';
+import ImpactBanner, { ImpactEvent } from './components/ImpactBanner';
 import { createOnlineRoom, loadNickname, saveNickname } from './core/online';
 import { getDailySeed, getTodayUtcKey, submitDailyScore } from './core/dailyLeaderboard';
 import { getTodaysChallenge, getDailyProgress, checkChallengeCompletion } from './core/challenges';
-import { getCurrentTheme, CardTheme } from './core/themes';
+import { getCurrentTheme, CardTheme, unlockTheme, isThemeUnlocked } from './core/themes';
+import { loadInventory, usePowerUp, powerUpCatalog, PowerUpInventory } from './core/powerups';
 import { PersonalityType, getCurrentPersonality, getStyledCommentary } from './core/commentaryPersonalities';
 
 type GameView = 'menu' | 'playing' | 'gameover' | 'online';
@@ -110,6 +113,12 @@ const App: React.FC = () => {
   const [showDailyBoard, setShowDailyBoard] = useState<boolean>(false);
   const [isDailySeedRun, setIsDailySeedRun] = useState<boolean>(false);
   const [dailyRankResult, setDailyRankResult] = useState<{ rank: number; total: number; improved: boolean; day: string } | null>(null);
+
+  // Drop A & B: Arcade impact banner, power-up inventory, X-Ray overlay, coins earned
+  const [impact, setImpact] = useState<ImpactEvent | null>(null);
+  const [inventory, setInventory] = useState<PowerUpInventory>(() => loadInventory());
+  const [xrayView, setXrayView] = useState<{ name: string; avatar: string; cards: Card[] } | null>(null);
+  const [lastCoinsEarned, setLastCoinsEarned] = useState<number>(0);
 
   // Game tracking for enhanced stats
   const gameStartTimeRef = useRef<number>(0);
@@ -215,6 +224,7 @@ const App: React.FC = () => {
 
     if (!stats) return;
 
+    const coinsBefore = stats.coins;
     const newStats = recordGame(stats, {
       won: isWin,
       difficulty: state.difficulty,
@@ -225,7 +235,12 @@ const App: React.FC = () => {
       attackCardsUsed: attackCardsUsedRef.current,
       durationMs: duration,
     });
+    setLastCoinsEarned(Math.max(0, newStats.coins - coinsBefore));
     setStats(newStats);
+
+    // Auto-unlock themes based on milestones
+    if (newStats.wins >= 10 && !isThemeUnlocked('neon')) unlockTheme('neon');
+    if (newStats.wins >= 25 && !isThemeUnlocked('vintage')) unlockTheme('vintage');
 
     // Check Daily Challenge progress
     const powerCardsUsed = cardsPlayedRef.current - attackCardsUsedRef.current; // Rough estimate
@@ -282,7 +297,8 @@ const App: React.FC = () => {
 
     if (currentPlayer.isBot) {
       const timer = setTimeout(() => {
-        const decision = getBotDecision(gameState);
+        const activeRules = isDailySeedRun ? undefined : gameRules;
+        const decision = getBotDecision(gameState, activeRules);
         const botDiv = botRefs.current[gameState.currentPlayerIndex];
         const botPosition = getPlayerPosition(gameState.currentPlayerIndex, gameState.players.length) as 'top' | 'left' | 'right';
 
@@ -300,17 +316,29 @@ const App: React.FC = () => {
 
             triggerPlayAnimation(cardToPlay, startRect, () => {
               playCardSound();
-              const nextState = playCard(gameState, decision.cardId!);
+              const nextState = playCard(gameState, decision.cardId!, activeRules);
 
-              // Trigger effects and commentary
-              if (isAttackCard) {
+              // Trigger effects, impact banners, and commentary
+              if (nextState.pendingPickup >= 5) {
+                triggerShake();
+                setImpact({ id: Date.now(), title: `🔥 MEGA +${nextState.pendingPickup} ATTACK!`, subtitle: 'Defend or draw!', tone: 'attack' });
+                showCommentary('attack', botPosition);
+              } else if (nextState.pendingPickup >= 4) {
+                triggerShake();
+                setImpact({ id: Date.now(), title: `💥 +${nextState.pendingPickup} STACK!!`, tone: 'attack' });
+                showCommentary('attack', botPosition);
+              } else if (isAttackCard && nextState.pendingPickup > 0) {
                 triggerShake();
                 showCommentary('attack', botPosition);
+              } else if (cardToPlay.rank === 'K' && (!activeRules || activeRules.enableSwap)) {
+                setImpact({ id: Date.now(), title: '🤴 HANDS SWAPPED!', tone: 'swap' });
+                showCommentary('swap', botPosition);
               } else if (isSkip) {
                 showCommentary('skip', botPosition);
               } else if (isPeek) {
                 showCommentary('peek', botPosition);
-              } else if (currentPlayer.hand.length <= 2) {
+              } else if (nextState.players[gameState.currentPlayerIndex]?.hand.length === 1) {
+                setImpact({ id: Date.now(), title: `⚠️ ${currentPlayer.name}: LAST CARD!`, tone: 'danger' });
                 showCommentary('almost_win', botPosition);
               }
 
@@ -319,7 +347,7 @@ const App: React.FC = () => {
             });
           } else {
             playCardSound();
-            const nextState = playCard(gameState, decision.cardId);
+            const nextState = playCard(gameState, decision.cardId, activeRules);
             setGameState(nextState);
             checkWin(nextState);
           }
@@ -385,11 +413,106 @@ const App: React.FC = () => {
     setView('playing');
   };
 
-  // --- COMMENTARY HELPER ---
+  // --- COMMENTARY HELPER (Uses selected Personality Style!) ---
   const showCommentary = (type: CommentaryType, position: 'top' | 'left' | 'right') => {
-    const commentary = getCommentary(type);
-    setCurrentCommentary(commentary);
+    const styledText = getStyledCommentary(type, currentPersonality);
+    const fallback = getCommentary(type);
+    setCurrentCommentary({
+      text: styledText || fallback.text,
+      emoji: fallback.emoji,
+      type,
+    });
     setCommentaryPosition(position);
+  };
+
+  // --- IN-GAME POWER-UP ACTIVATION ---
+  const handleUsePowerUp = (powerUpId: string) => {
+    if (!gameState || view !== 'playing' || gameState.currentPlayerIndex !== 0 || isDailySeedRun) return;
+    if (!inventory[powerUpId] || inventory[powerUpId] <= 0) return;
+
+    const topCard = gameState.discardPile[gameState.discardPile.length - 1];
+
+    if (powerUpId === 'block_attack') {
+      if (gameState.pendingPickup <= 0) {
+        setErrorMsg('🛡️ Use Shield when facing a +2 or +5 attack!');
+        setTimeout(() => setErrorMsg(null), 2000);
+        return;
+      }
+      if (!usePowerUp(powerUpId)) return;
+      playPowerUpSound();
+      setInventory(loadInventory());
+      setGameState({ ...gameState, pendingPickup: 0, lastAction: '🛡️ Shield blocked the attack!' });
+      setImpact({ id: Date.now(), title: '🛡️ ATTACK BLOCKED!', tone: 'shield' });
+      return;
+    }
+
+    if (powerUpId === 'draw_best') {
+      const idx = gameState.deck.findIndex((c) => isValidMove(c, topCard, gameState.pendingPickup, gameState.chosenSuit, gameRules));
+      if (idx === -1) {
+        setErrorMsg('🍀 No matching card left in the deck!');
+        setTimeout(() => setErrorMsg(null), 2000);
+        return;
+      }
+      if (!usePowerUp(powerUpId)) return;
+      playPowerUpSound();
+      setInventory(loadInventory());
+      const nextDeck = [...gameState.deck];
+      const [found] = nextDeck.splice(idx, 1);
+      const nextPlayers = gameState.players.map((p, i) =>
+        i === 0 ? { ...p, hand: sortHand([...p.hand, found]) } : p
+      );
+      setGameState({ ...gameState, deck: nextDeck, players: nextPlayers, lastAction: `🍀 Lucky Draw pulled ${found.rank}${found.suit}!` });
+      return;
+    }
+
+    if (powerUpId === 'peek_all') {
+      const opp = gameState.players.find((p) => p.isBot && p.hand.length > 0);
+      if (!opp) return;
+      if (!usePowerUp(powerUpId)) return;
+      playPowerUpSound();
+      setInventory(loadInventory());
+      setXrayView({ name: opp.name, avatar: opp.avatar, cards: [...opp.hand] });
+      window.setTimeout(() => setXrayView(null), 4500);
+      return;
+    }
+
+    if (powerUpId === 'discard_wild') {
+      if (!usePowerUp(powerUpId)) return;
+      playPowerUpSound();
+      setInventory(loadInventory());
+      setGameState({ ...gameState, pendingPickup: 0, pendingSuitChoice: true, lastAction: '🃏 Wild Power-Up! Choose any suit!' });
+      return;
+    }
+
+    if (powerUpId === 'shuffle_enemy') {
+      const oppIdx = gameState.players.findIndex((p) => p.isBot && p.hand.length > 0);
+      if (oppIdx < 0 || gameState.deck.length < 2) return;
+      if (!usePowerUp(powerUpId)) return;
+      playPowerUpSound();
+      setInventory(loadInventory());
+      const deckCopy = [...gameState.deck];
+      const oppHand = [...gameState.players[oppIdx].hand];
+      const swapCount = Math.min(2, oppHand.length, deckCopy.length);
+      for (let i = 0; i < swapCount; i++) {
+        const r = Math.floor(Math.random() * oppHand.length);
+        const removed = oppHand.splice(r, 1)[0];
+        const drawn = deckCopy.pop()!;
+        oppHand.push(drawn);
+        deckCopy.unshift(removed);
+      }
+      const nextPlayers = gameState.players.map((p, i) => (i === oppIdx ? { ...p, hand: oppHand } : p));
+      setGameState({ ...gameState, deck: deckCopy, players: nextPlayers, lastAction: `🌀 Confused ${gameState.players[oppIdx].name}'s hand!` });
+      return;
+    }
+
+    if (powerUpId === 'extra_turn') {
+      if (!usePowerUp(powerUpId)) return;
+      playPowerUpSound();
+      setInventory(loadInventory());
+      setErrorMsg('⏩ Double Time active — draw skipped & stay on your turn!');
+      setTimeout(() => setErrorMsg(null), 2200);
+      setGameState({ ...gameState, pendingPickup: 0, lastAction: '⏩ Double Time! Take another move!' });
+    }
   };
 
   // --- POWER-UP HANDLERS ---
@@ -426,16 +549,19 @@ const App: React.FC = () => {
     if (view !== 'playing' || !gameState || flyingCard) return;
     if (gameState.players[gameState.currentPlayerIndex].isBot) return;
 
+    const activeRules = isDailySeedRun ? undefined : gameRules;
     const topCard = gameState.discardPile[gameState.discardPile.length - 1];
     const mustPickup = gameState.pendingPickup > 0;
-    const valid = isValidMove(card, topCard, gameState.pendingPickup, gameState.chosenSuit);
+    const valid = isValidMove(card, topCard, gameState.pendingPickup, gameState.chosenSuit, activeRules);
 
     if (mustPickup && !valid) {
       const isBlackJackTop = topCard.rank === Rank.Jack && (topCard.suit === Suit.Spades || topCard.suit === Suit.Clubs);
       setErrorMsg(
-        isBlackJackTop
-          ? `🛡️ Defend with a Black Jack (J♠/J♣) or Pick Up!`
-          : `🛡️ Defend with a ${topCard.rank} or Pick Up!`
+        activeRules?.enableStacking === false
+          ? '🛡️ Stacking disabled in Custom Rules — Pick Up!'
+          : isBlackJackTop
+            ? `🛡️ Defend with a Black Jack (J♠/J♣) or Pick Up!`
+            : `🛡️ Defend with a ${topCard.rank} or Pick Up!`
       );
       setTimeout(() => setErrorMsg(null), 2500);
       return;
@@ -452,13 +578,25 @@ const App: React.FC = () => {
         playCardSound();
         // Save state for undo before playing
         const stateWithUndo = saveStateForUndo(gameState);
-        const newState = playCard(stateWithUndo, card.id);
+        const newState = playCard(stateWithUndo, card.id, activeRules);
 
         // Track cards played for stats
         cardsPlayedRef.current++;
-        if (isAttackCard) {
+        if (newState.pendingPickup >= 5) {
           attackCardsUsedRef.current++;
           triggerShake();
+          setImpact({ id: Date.now(), title: `🔥 MEGA +${newState.pendingPickup} ATTACK!`, tone: 'attack' });
+        } else if (newState.pendingPickup >= 4) {
+          attackCardsUsedRef.current++;
+          triggerShake();
+          setImpact({ id: Date.now(), title: `💥 +${newState.pendingPickup} STACK!!`, tone: 'attack' });
+        } else if (isAttackCard && newState.pendingPickup > 0) {
+          attackCardsUsedRef.current++;
+          triggerShake();
+        } else if (card.rank === 'K' && (!activeRules || activeRules.enableSwap)) {
+          setImpact({ id: Date.now(), title: '🤴 HANDS SWAPPED!', tone: 'swap' });
+        } else if (newState.players[0]?.hand.length === 1 && !newState.winnerId) {
+          setImpact({ id: Date.now(), title: '⚠️ LAST CARD!', subtitle: 'One more to win!', tone: 'danger' });
         }
 
         setGameState(newState);
@@ -531,6 +669,7 @@ const App: React.FC = () => {
       <OnlineRoom
         roomCode={activeRoomCode}
         nickname={nickname.trim() || 'Player'}
+        theme={currentTheme}
         onLeave={handleLeaveRoom}
       />
     );
@@ -915,6 +1054,7 @@ const App: React.FC = () => {
               const newStats = { ...stats, coins: newCoins };
               setStats(newStats);
               saveStats(newStats);
+              setInventory(loadInventory());
             }}
             onClose={() => setShowPowerUpShop(false)}
           />
@@ -994,22 +1134,59 @@ const App: React.FC = () => {
           )}
 
           {/* Match Summary */}
-          <div className="flex justify-center gap-3 mb-6 text-sm">
-            <div className="bg-black/25 px-4 py-2 rounded-xl border border-white/15">
-              <div className="text-purple-200 text-xs uppercase font-bold">Time</div>
-              <div className="font-black text-base">{formatDuration(lastMatchDurationMs)}</div>
+          <div className="flex justify-center gap-2.5 mb-5 text-sm flex-wrap">
+            <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/15">
+              <div className="text-purple-200 text-[11px] uppercase font-bold">Time</div>
+              <div className="font-display font-black text-base tabular-nums">{formatDuration(lastMatchDurationMs)}</div>
             </div>
-            <div className="bg-black/25 px-4 py-2 rounded-xl border border-white/15">
-              <div className="text-purple-200 text-xs uppercase font-bold">Cards Played</div>
-              <div className="font-black text-base">{cardsPlayedRef.current}</div>
+            <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/15">
+              <div className="text-purple-200 text-[11px] uppercase font-bold">Cards</div>
+              <div className="font-display font-black text-base tabular-nums">{cardsPlayedRef.current}</div>
             </div>
+            {isHumanWinner && lastCoinsEarned > 0 && (
+              <div className="bg-yellow-400/20 px-3.5 py-2 rounded-xl border border-yellow-400/50">
+                <div className="text-yellow-200 text-[11px] uppercase font-bold">Earned</div>
+                <div className="font-display font-black text-base text-yellow-300 tabular-nums">+{lastCoinsEarned} 🪙</div>
+              </div>
+            )}
             {stats && isHumanWinner && (
-              <div className="bg-black/25 px-4 py-2 rounded-xl border border-white/15">
-                <div className="text-purple-200 text-xs uppercase font-bold">Streak</div>
-                <div className="font-black text-base">🔥 {stats.currentWinStreak}</div>
+              <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/15">
+                <div className="text-purple-200 text-[11px] uppercase font-bold">Streak</div>
+                <div className="font-display font-black text-base tabular-nums">🔥 {stats.currentWinStreak}</div>
               </div>
             )}
           </div>
+
+          {/* Rank Progress & Next Unlock Teaser */}
+          {stats && (() => {
+            const rank = getRank(stats);
+            const pct = rank.nextAt > 0 ? Math.min(100, Math.round((stats.wins / rank.nextAt) * 100)) : 100;
+            const winsToNext = Math.max(0, rank.nextAt - stats.wins);
+            const nextThemeTeaser = stats.wins < 10
+              ? `🌈 Neon Nights theme unlocks in ${10 - stats.wins} more win${10 - stats.wins === 1 ? '' : 's'}!`
+              : stats.wins < 25
+                ? `🎰 Vintage Casino theme unlocks in ${25 - stats.wins} more win${25 - stats.wins === 1 ? '' : 's'}!`
+                : null;
+            return (
+              <div className="bg-black/25 rounded-2xl p-3.5 mb-5 border border-white/15 text-left">
+                <div className="flex justify-between items-center text-xs font-bold mb-1.5">
+                  <span className="text-yellow-300">{rank.emoji} {rank.name}</span>
+                  <span className="text-purple-200">
+                    {winsToNext > 0 ? `${winsToNext} win${winsToNext === 1 ? '' : 's'} to next rank` : 'Max Rank!'}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-white/15 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full transition-all duration-700"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                {nextThemeTeaser && (
+                  <p className="text-[11px] text-purple-200 font-semibold mt-2 text-center">{nextThemeTeaser}</p>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="flex flex-wrap gap-3 justify-center">
             <button onClick={() => setView('menu')} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-full border-b-4 border-gray-800 transition-transform active:border-b-0 active:translate-y-1">Menu</button>
@@ -1027,14 +1204,50 @@ const App: React.FC = () => {
 
   const humanPlayer = gameState.players[0];
   const topCard = gameState.discardPile[gameState.discardPile.length - 1];
+  const prevDiscardCards = gameState.discardPile.slice(-3, -1);
   const isPlayerTurn = gameState.currentPlayerIndex === 0;
   const mustPickup = isPlayerTurn && gameState.pendingPickup > 0;
+  const activeRules = isDailySeedRun ? undefined : gameRules;
+  const themeCardBack = getThemeCardBackStyle(currentTheme);
+  const anyLastCard = gameState.players.some((p) => p.hand.length === 1);
+  const ownedPowerUps = !isDailySeedRun && gameState.gameMode === GameMode.VsBot
+    ? powerUpCatalog.filter((p) => (inventory[p.id] || 0) > 0)
+    : [];
 
   // 3. GAMEPLAY
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-violet-600 via-indigo-700 to-purple-800 text-white overflow-hidden relative font-sans select-none touch-none ${isShaking ? 'animate-shake' : ''}`}
+    <div className={`min-h-screen bg-gradient-to-br ${currentTheme.tableBackground} text-white overflow-hidden relative font-sans select-none touch-none ${isShaking ? 'animate-shake' : ''} ${anyLastCard ? 'ring-inset ring-4 ring-red-500/60' : ''}`}
       style={isShaking ? { animation: 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both' } : {}}
     >
+      {/* Center Table Spotlight */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(circle at 50% 45%, rgba(255,255,255,0.12) 0%, transparent 55%)' }}
+      />
+
+      {/* Arcade Impact Callout */}
+      <ImpactBanner event={impact} onDone={() => setImpact(null)} />
+
+      {/* X-Ray Vision Power-Up Overlay */}
+      {xrayView && (
+        <div
+          className="fixed inset-0 bg-black/75 flex items-center justify-center z-[95] p-4 cursor-pointer"
+          onClick={() => setXrayView(null)}
+        >
+          <div className="bg-indigo-950/95 border-4 border-cyan-400 rounded-3xl p-6 max-w-xl w-full text-center shadow-2xl">
+            <div className="text-3xl mb-1">👁️ X-RAY VISION</div>
+            <p className="text-sm font-bold text-cyan-200 mb-4">
+              {xrayView.avatar} {xrayView.name}&apos;s Hand ({xrayView.cards.length} cards)
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {xrayView.cards.map((c) => (
+                <PlayingCard key={c.id} card={c} theme={currentTheme} />
+              ))}
+            </div>
+            <p className="text-xs text-purple-200 mt-4 animate-pulse">Tap anywhere to dismiss</p>
+          </div>
+        </div>
+      )}
       {/* Shake Animation Styles */}
       <style>{`
         @keyframes shake {
@@ -1192,45 +1405,43 @@ const App: React.FC = () => {
               ref={drawPileRef}
               onClick={handleDrawClick}
               disabled={!isPlayerTurn}
-              style={{ ...cardBackPattern }}
+              style={themeCardBack}
               className={`w-24 h-36 md:w-32 md:h-48 rounded-2xl border-4 border-white/30 shadow-2xl flex items-center justify-center transition-all transform ${mustPickup ? 'ring-8 ring-red-500 animate-pulse scale-105' : 'hover:-translate-y-2 hover:shadow-indigo-500/50'} ${!isPlayerTurn ? 'opacity-80' : 'cursor-pointer'}`}
             >
-              <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
-                <span className="font-black text-2xl text-white drop-shadow-md">{mustPickup ? `+${gameState.pendingPickup}` : 'DRAW'}</span>
+              <div className="bg-black/35 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
+                <span className="font-display font-black text-xl md:text-2xl text-white drop-shadow-md">{mustPickup ? `+${gameState.pendingPickup}` : 'DRAW'}</span>
               </div>
             </button>
             {/* Deck thickness illusion */}
-            <div className="absolute top-1 left-1 w-full h-full rounded-2xl bg-blue-800 -z-10"></div>
-            <div className="absolute top-2 left-2 w-full h-full rounded-2xl bg-blue-900 -z-20"></div>
+            <div className="absolute top-1 left-1 w-full h-full rounded-2xl bg-black/35 -z-10"></div>
+            <div className="absolute top-2 left-2 w-full h-full rounded-2xl bg-black/45 -z-20"></div>
 
-            <p className="mt-4 text-sm font-bold text-indigo-200 bg-black/30 px-3 py-1 rounded-full">{gameState.deck.length} Cards</p>
+            <p className="mt-4 text-sm font-bold text-indigo-100 bg-black/35 px-3 py-1 rounded-full tabular-nums">{gameState.deck.length} Cards</p>
           </div>
 
-          {/* Discard Pile */}
+          {/* Discard Pile (Stacked Physical Depth) */}
           <div ref={discardRef} className="flex flex-col items-center relative">
-            {gameState.pendingPickup > 0 && <div className="absolute -top-16 bg-red-600 text-white font-black text-xl px-6 py-2 rounded-full shadow-lg animate-bounce z-20 border-4 border-white rotate-6 whitespace-nowrap">ATTACK INCOMING!</div>}
+            {gameState.pendingPickup > 0 && <div className="absolute -top-16 bg-red-600 text-white font-display font-black text-xl px-6 py-2 rounded-full shadow-lg animate-bounce z-20 border-4 border-white rotate-6 whitespace-nowrap">+{gameState.pendingPickup} ATTACK!</div>}
             {gameState.chosenSuit && gameState.pendingPickup === 0 && (
-              <div className="absolute -top-12 bg-yellow-400 text-black font-black text-sm md:text-base px-4 py-1.5 rounded-full shadow-lg z-20 border-2 border-white whitespace-nowrap flex items-center gap-1.5">
+              <div className="absolute -top-12 bg-yellow-400 text-black font-display font-black text-sm md:text-base px-4 py-1.5 rounded-full shadow-lg z-20 border-2 border-white whitespace-nowrap flex items-center gap-1.5">
                 <span>👑 Wild Suit:</span>
                 <span className={`text-xl leading-none ${['♥', '♦'].includes(gameState.chosenSuit) ? 'text-red-600' : 'text-gray-900'}`}>{gameState.chosenSuit}</span>
               </div>
             )}
 
-            <div className={`w-24 h-36 md:w-32 md:h-48 bg-white text-black rounded-2xl shadow-2xl flex flex-col items-center justify-center border-b-8 border-r-8 border-gray-300 relative overflow-hidden transform rotate-3 transition-transform`}>
-              <span className="font-black text-6xl md:text-7xl z-10 drop-shadow-sm">{topCard.rank}</span>
-              <span className={`absolute text-[9rem] opacity-10 ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
-
-              {/* Corner Indices - Large and High Contrast */}
-              <div className="absolute top-1.5 left-2 flex flex-col items-center leading-none">
-                <span className={`text-2xl md:text-3xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.rank}</span>
-                <span className={`text-3xl md:text-4xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
-              </div>
-              <div className="absolute bottom-1.5 right-2 flex flex-col items-center leading-none transform rotate-180">
-                <span className={`text-2xl md:text-3xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.rank}</span>
-                <span className={`text-3xl md:text-4xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
-              </div>
+            <div className="relative">
+              {prevDiscardCards.map((prev, idx) => (
+                <div
+                  key={prev.id}
+                  className="absolute inset-0 pointer-events-none opacity-65"
+                  style={{ transform: `rotate(${idx === 0 ? -9 : -4}deg) translate(${idx === 0 ? -6 : -3}px, ${idx === 0 ? 4 : 2}px)` }}
+                >
+                  <PlayingCard card={prev} theme={currentTheme} size="discard" />
+                </div>
+              ))}
+              <PlayingCard card={topCard} theme={currentTheme} size="discard" style={{ transform: 'rotate(3deg)' }} />
             </div>
-            <p className="mt-4 text-sm font-bold text-indigo-200 bg-black/30 px-3 py-1 rounded-full">
+            <p className="mt-4 text-sm font-bold text-indigo-100 bg-black/35 px-3 py-1 rounded-full">
               {gameState.chosenSuit ? `Suit: ${gameState.chosenSuit}` : 'Top Card'}
             </p>
           </div>
@@ -1250,16 +1461,21 @@ const App: React.FC = () => {
 
         return (
           <div key={p.id} ref={el => { botRefs.current[idx] = el }} className={containerClass}>
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full border-b-4 mb-2 text-sm font-bold shadow-lg transition-all ${isCurrentTurn ? 'bg-yellow-400 text-black border-yellow-600 scale-110' : 'bg-gray-800 border-gray-900 text-gray-300'}`}>
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full border-b-4 mb-2 text-sm font-bold shadow-lg transition-all ${isCurrentTurn ? 'bg-yellow-400 text-black border-yellow-600 scale-110' : 'bg-gray-900/90 border-black text-gray-200'}`}>
               <span className="text-2xl">{p.avatar}</span>
               <span>{p.name}</span>
+              {p.hand.length === 1 && (
+                <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-black animate-pulse">
+                  ⚠️ LAST CARD!
+                </span>
+              )}
               {isCurrentTurn && <span className="animate-spin">⏳</span>}
             </div>
 
             <div className="flex -space-x-8">
               {p.hand.map((card, cIdx) => (
                 cIdx < 6 && (
-                  <div key={card.id} className="w-10 h-14 md:w-12 md:h-16 rounded-lg border-2 border-white shadow-md relative overflow-hidden transform hover:-translate-y-2 transition-transform" style={{ zIndex: cIdx, ...cardBackPattern }}></div>
+                  <div key={card.id} className="w-10 h-14 md:w-12 md:h-16 rounded-lg border-2 border-white/80 shadow-md relative overflow-hidden transform hover:-translate-y-2 transition-transform" style={{ zIndex: cIdx, ...themeCardBack }}></div>
                 )
               ))}
               {p.hand.length > 6 && (
@@ -1274,9 +1490,29 @@ const App: React.FC = () => {
 
       {/* PLAYER HAND */}
       <div ref={playerHandRef} className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-safe pt-2 z-30">
+        {/* In-Game Power-Up Belt (Solo non-Daily Seed) */}
+        {ownedPowerUps.length > 0 && isPlayerTurn && (
+          <div className="flex gap-1.5 items-center mb-2 z-50 flex-wrap justify-center px-2">
+            {ownedPowerUps.map((pu) => (
+              <button
+                key={pu.id}
+                onClick={() => handleUsePowerUp(pu.id)}
+                title={`${pu.name}: ${pu.description}`}
+                className="bg-black/45 hover:bg-purple-600/80 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full border border-yellow-400/50 shadow-md transition-all hover:scale-105 flex items-center gap-1"
+              >
+                <span>{pu.emoji}</span>
+                <span>{pu.name}</span>
+                <span className="bg-yellow-400 text-black text-[10px] font-black px-1.5 rounded-full tabular-nums">
+                  {inventory[pu.id]}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Control Bar */}
         <div className="flex gap-3 items-center mb-3 z-50">
-          <div className={`px-6 py-2.5 rounded-full text-base md:text-lg font-black shadow-xl transition-all border-b-4 ${isPlayerTurn ? mustPickup ? 'bg-red-500 text-white border-red-700 scale-105 animate-bounce' : 'bg-yellow-400 text-black border-yellow-600' : 'bg-gray-700 text-gray-400 border-gray-900'}`}>
+          <div className={`px-6 py-2.5 rounded-full text-base md:text-lg font-display font-black shadow-xl transition-all border-b-4 ${isPlayerTurn ? mustPickup ? 'bg-red-500 text-white border-red-700 scale-105 animate-bounce' : 'bg-yellow-400 text-black border-yellow-600' : 'bg-gray-800 text-gray-400 border-gray-950'}`}>
             {isPlayerTurn ? (mustPickup ? "DEFEND OR DRAW!" : "YOUR TURN!") : "WAITING..."}
           </div>
           {isPlayerTurn && <button onClick={handleSortClick} className="bg-blue-500 hover:bg-blue-400 text-white font-bold px-4 py-2.5 rounded-full border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 transition-all text-sm md:text-base">Sort Cards</button>}
@@ -1296,44 +1532,34 @@ const App: React.FC = () => {
           )}
         </div>
 
-        {/* Cards Container */}
+        {/* Cards Container (Curved Fan Arc + Iconic Power Cards) */}
         <div className={`flex flex-wrap justify-center ${humanPlayer.hand.length > 9 ? '-space-x-7 md:-space-x-9' : '-space-x-4 md:-space-x-6'} px-4 w-full max-w-5xl pb-4 min-h-[145px] items-end`}>
           {humanPlayer.hand.map((card, i) => {
-            const canStack = mustPickup && isValidMove(card, topCard, gameState.pendingPickup, gameState.chosenSuit);
-            const normalPlay = !mustPickup && isPlayerTurn && isValidMove(card, topCard, 0, gameState.chosenSuit);
+            const canStack = mustPickup && isValidMove(card, topCard, gameState.pendingPickup, gameState.chosenSuit, activeRules);
+            const normalPlay = !mustPickup && isPlayerTurn && isValidMove(card, topCard, 0, gameState.chosenSuit, activeRules);
             const playable = canStack || normalPlay;
-            const isRed = ['♥', '♦'].includes(card.suit);
             const isHidden = card.id === hiddenCardId;
-
-            // High-contrast suit colors
-            const suitColor = isRed ? 'text-red-600' : 'text-gray-900';
+            const center = (humanPlayer.hand.length - 1) / 2;
+            const offset = i - center;
+            const arcLift = Math.max(0, 12 - Math.abs(offset) * 2.5);
 
             return (
-              <div
+              <PlayingCard
                 key={card.id}
-                data-card-id={card.id} // Add data attribute for easier ref finding
+                card={card}
+                theme={currentTheme}
+                playable={playable}
+                canStack={canStack}
+                dimmed={mustPickup && !playable}
+                sorting={isSorting}
+                hidden={isHidden}
                 onClick={(e) => handleCardClick(e, card)}
                 style={{
-                  marginBottom: playable ? '22px' : '0px',
+                  marginBottom: `${(playable ? 22 : 0) + arcLift}px`,
                   zIndex: i,
-                  opacity: isHidden ? 0 : 1,
-                  transform: `rotate(${(i - humanPlayer.hand.length / 2) * (humanPlayer.hand.length > 9 ? 1.2 : 2)}deg)` // Slight fan effect
+                  transform: `rotate(${offset * (humanPlayer.hand.length > 9 ? 1.2 : 2)}deg)`,
                 }}
-                className={`${getCardStyles(card, playable, isRed)} ${playable ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-purple-800 playable-card-glow' : ''} ${mustPickup && !playable ? 'grayscale opacity-60' : ''} ${canStack ? 'ring-red-500 animate-pulse' : ''} ${isSorting ? 'sorting-card' : ''}`}
-              >
-                {/* Top-left corner - Large rank and suit */}
-                <div className="flex flex-col items-center leading-none self-start">
-                  <span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span>
-                  <span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span>
-                </div>
-                {/* Center watermark */}
-                <div className={`absolute inset-0 flex items-center justify-center text-7xl opacity-10 pointer-events-none ${suitColor}`}>{card.suit}</div>
-                {/* Bottom-right corner - Large rank and suit (rotated) */}
-                <div className="flex flex-col items-center leading-none self-end transform rotate-180">
-                  <span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span>
-                  <span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span>
-                </div>
-              </div>
+              />
             );
           })}
         </div>

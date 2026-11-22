@@ -61,6 +61,12 @@ export const createOnlineRoom = async (): Promise<string> => {
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error';
 
+export interface OnlineReaction {
+  id: number;
+  seat: number;
+  emoji: string;
+}
+
 export interface OnlineRoomHook {
   view: View | null;
   status: ConnectionStatus;
@@ -68,12 +74,14 @@ export interface OnlineRoomHook {
   clearError: () => void;
   peek: { card: Card; seat: number } | null;
   clearPeek: () => void;
+  reactions: OnlineReaction[];
   clockOffsetMs: number;
   sendStart: (size: number, difficulty: Difficulty) => void;
   sendPlay: (cardId: string) => void;
   sendDraw: () => void;
   sendSuit: (suit: Suit) => void;
   sendSwap: (seat: number) => void;
+  sendReact: (emoji: string) => void;
   updateName: (name: string) => void;
 }
 
@@ -82,6 +90,7 @@ export const useOnlineRoom = (roomCode: string, nickname: string): OnlineRoomHoo
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
   const [peek, setPeek] = useState<{ card: Card; seat: number } | null>(null);
+  const [reactions, setReactions] = useState<OnlineReaction[]>([]);
   const [clockOffsetMs, setClockOffsetMs] = useState<number>(0);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -137,6 +146,12 @@ export const useOnlineRoom = (roomCode: string, nickname: string): OnlineRoomHoo
             setClockOffsetMs(msg.now - Date.now());
           } else if (msg.t === 'peek') {
             setPeek({ card: msg.card, seat: msg.seat });
+          } else if (msg.t === 'react') {
+            const rid = Date.now() + Math.random();
+            setReactions((prev) => [...prev.slice(-6), { id: rid, seat: msg.seat, emoji: msg.emoji }]);
+            window.setTimeout(() => {
+              setReactions((prev) => prev.filter((r) => r.id !== rid));
+            }, 2200);
           } else if (msg.t === 'error') {
             setError(msg.error);
           }
@@ -200,6 +215,10 @@ export const useOnlineRoom = (roomCode: string, nickname: string): OnlineRoomHoo
     sendMsg({ t: 'swap', seat });
   }, [sendMsg]);
 
+  const sendReact = useCallback((emoji: string) => {
+    sendMsg({ t: 'react', emoji });
+  }, [sendMsg]);
+
   const updateName = useCallback((name: string) => {
     saveNickname(name);
     sendMsg({ t: 'join', id: getGuestId(), name: name.trim() || 'Player' });
@@ -212,12 +231,14 @@ export const useOnlineRoom = (roomCode: string, nickname: string): OnlineRoomHoo
     clearError: useCallback(() => setError(null), []),
     peek,
     clearPeek: useCallback(() => setPeek(null), []),
+    reactions,
     clockOffsetMs,
     sendStart,
     sendPlay,
     sendDraw,
     sendSuit,
     sendSwap,
+    sendReact,
     updateName,
   };
 };

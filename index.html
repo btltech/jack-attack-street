@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1a1a2e" />
     <title>Jack Attack Street &amp; Classic Street Games — Play Free Online</title>
-    <meta name="description" content="Play Jack Attack Street (fast-paced card game with Black Jack +5s, stackable 2s &amp; daily challenges) and Ayò Ọlọ́pọ́n (traditional Yorùbá Mancala) free in your browser — no download required." />
+    <meta name="description" content="Play Jack Attack Street (fast-paced card game with Black Jack +5s, stackable 2s, online friend rooms &amp; daily leaderboard) and Ayò Ọlọ́pọ́n (traditional Yorùbá Mancala) free in your browser — no download required." />
     <link rel="canonical" href="https://www.jackattackstreets.com/" />
 
     <!-- Open Graph / Social Previews -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Classic Street Games" />
     <meta property="og:title" content="Jack Attack Street &amp; Classic Street Games — Play Free Online" />
-    <meta property="og:description" content="Play Jack Attack Street card game &amp; Ayò Ọlọ́pọ́n Yorùbá Mancala free in your browser. No download, instant play!" />
+    <meta property="og:description" content="Play Jack Attack Street card game &amp; Ayò Ọlọ́pọ́n Yorùbá Mancala free in your browser. Instant online rooms, daily leaderboard — no download!" />
     <meta property="og:url" content="https://www.jackattackstreets.com/" />
     <meta property="og:image" content="https://www.jackattackstreets.com/og-home.png" />
     <meta property="og:image:width" content="1200" />
@@ -28,6 +28,10 @@
     <link rel="manifest" href="/jackattack-manifest.json" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -38,43 +42,44 @@
       }
     </script>
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
+      * { margin: 0; padding: 0; box-sizing: border-box; }
       body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.25), transparent 45%),
+          radial-gradient(circle at 80% 75%, rgba(0, 168, 107, 0.22), transparent 45%),
+          linear-gradient(135deg, #111124 0%, #16213e 50%, #0f294a 100%);
         min-height: 100vh;
         color: white;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 28px 20px;
+        padding: 28px 18px;
       }
 
       .hero-badge {
         display: inline-block;
-        background: rgba(245, 158, 11, 0.16);
-        border: 1px solid rgba(251, 191, 36, 0.45);
-        color: #fcd34d;
-        font-size: 0.8rem;
-        font-weight: 700;
+        background: rgba(250, 204, 21, 0.14);
+        border: 1px solid rgba(250, 204, 21, 0.45);
+        color: #fde047;
+        font-size: 0.78rem;
+        font-weight: 800;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        padding: 0.35rem 0.9rem;
+        padding: 0.35rem 0.95rem;
         border-radius: 999px;
-        margin-bottom: 0.9rem;
+        margin-bottom: 0.85rem;
       }
 
       h1 {
-        font-size: 2.85rem;
-        margin-bottom: 0.5rem;
+        font-family: 'Outfit', sans-serif;
+        font-size: 3.1rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.45rem;
         text-align: center;
-        background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6);
+        background: linear-gradient(90deg, #fde047, #fb923c, #c084fc);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -82,11 +87,75 @@
 
       .subtitle {
         color: #cbd5e1;
-        margin-bottom: 2.25rem;
-        font-size: 1.1rem;
+        margin-bottom: 1.4rem;
+        font-size: 1.06rem;
         text-align: center;
         max-width: 580px;
       }
+
+      /* Quick Action Strip: Daily Seed + Join Room Code */
+      .quick-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 700px;
+      }
+
+      .daily-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        background: linear-gradient(90deg, #facc15, #f97316);
+        color: #111827;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 900;
+        font-size: 0.92rem;
+        padding: 0.65rem 1.25rem;
+        border-radius: 999px;
+        text-decoration: none;
+        box-shadow: 0 8px 24px rgba(249, 115, 22, 0.32);
+        transition: transform 0.2s;
+      }
+      .daily-pill:hover { transform: translateY(-2px) scale(1.02); }
+
+      .join-form {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1.5px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        padding: 4px 4px 4px 14px;
+        gap: 6px;
+      }
+      .join-form input {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: white;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        width: 108px;
+        font-size: 0.88rem;
+      }
+      .join-form input::placeholder { color: #94a3b8; letter-spacing: 0.06em; font-weight: 600; }
+      .join-form button {
+        background: #8b5cf6;
+        color: white;
+        border: none;
+        border-radius: 999px;
+        padding: 0.5rem 1rem;
+        font-weight: 800;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .join-form button:hover { background: #7c3aed; }
 
       .games-container {
         display: flex;
@@ -99,11 +168,11 @@
       }
 
       .game-card {
-        background: rgba(255, 255, 255, 0.09);
-        backdrop-filter: blur(8px);
-        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(10px);
+        border-radius: 24px;
         padding: 2rem;
-        width: 320px;
+        width: 340px;
         text-align: center;
         text-decoration: none;
         color: white;
@@ -117,7 +186,7 @@
 
       .game-card:hover {
         transform: translateY(-8px);
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
       }
 
       .featured-tag {
@@ -130,35 +199,52 @@
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        padding: 0.25rem 0.65rem;
+        padding: 0.28rem 0.7rem;
         border-radius: 999px;
       }
 
-      .game-card.jackattack {
-        border-color: #8b5cf6;
-      }
+      .game-card.jackattack { border-color: rgba(139, 92, 246, 0.85); }
+      .game-card.jackattack:hover { background: rgba(139, 92, 246, 0.2); }
+      .game-card.ayo { border-color: rgba(0, 168, 107, 0.85); }
+      .game-card.ayo:hover { background: rgba(0, 135, 81, 0.22); }
 
-      .game-card.jackattack:hover {
-        background: rgba(139, 92, 246, 0.22);
+      /* Animated Fanned Mini Cards */
+      .mini-fan {
+        position: relative;
+        height: 82px;
+        width: 140px;
+        margin-bottom: 1rem;
       }
+      .mini-card {
+        position: absolute;
+        width: 52px;
+        height: 74px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 900;
+        font-size: 1.25rem;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.35);
+        transition: transform 0.3s;
+        top: 4px;
+      }
+      .mini-card.c1 { left: 14px; background: #fff; color: #dc2626; transform: rotate(-14deg); }
+      .mini-card.c2 { left: 44px; background: linear-gradient(160deg, #1e293b, #020617); color: #fde047; border: 2px solid #f59e0b; z-index: 2; transform: translateY(-4px); }
+      .mini-card.c3 { left: 74px; background: #fff; color: #7c3aed; transform: rotate(14deg); }
+      .game-card.jackattack:hover .mini-card.c1 { transform: rotate(-22deg) translate(-4px, -4px); }
+      .game-card.jackattack:hover .mini-card.c2 { transform: translateY(-10px) scale(1.06); }
+      .game-card.jackattack:hover .mini-card.c3 { transform: rotate(22deg) translate(4px, -4px); }
 
-      .game-card.ayo {
-        border-color: #008751;
-      }
-
-      .game-card.ayo:hover {
-        background: rgba(0, 135, 81, 0.22);
-      }
-
-      .game-icon {
-        font-size: 3.75rem;
-        margin-bottom: 0.9rem;
-      }
+      .game-icon { font-size: 4rem; margin-bottom: 0.75rem; height: 82px; display: flex; align-items: center; }
 
       .game-title {
-        font-size: 1.5rem;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.6rem;
+        font-weight: 900;
+        margin-bottom: 0.45rem;
       }
 
       .game-description {
@@ -171,72 +257,62 @@
       .play-btn {
         display: inline-block;
         margin-top: auto;
-        padding: 0.8rem 2.1rem;
+        padding: 0.82rem 2.2rem;
         border-radius: 50px;
-        font-weight: bold;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        font-size: 0.9rem;
+        letter-spacing: 0.08em;
+        font-size: 0.92rem;
         color: white;
       }
-
-      .jackattack .play-btn {
-        background: linear-gradient(90deg, #8b5cf6, #6d28d9);
-      }
-
-      .ayo .play-btn {
-        background: linear-gradient(90deg, #008751, #00a86b);
-      }
+      .jackattack .play-btn { background: linear-gradient(90deg, #8b5cf6, #6d28d9); }
+      .ayo .play-btn { background: linear-gradient(90deg, #008751, #00a86b); }
 
       .about-section {
-        margin-top: 3rem;
+        margin-top: 2.75rem;
         max-width: 680px;
         text-align: center;
         color: #94a3b8;
         font-size: 0.9rem;
         line-height: 1.65;
       }
+      .about-section h2 { font-family: 'Outfit', sans-serif; color: #e2e8f0; font-size: 1.1rem; margin-bottom: 0.4rem; }
 
-      .about-section h2 {
-        color: #e2e8f0;
-        font-size: 1.05rem;
-        margin-bottom: 0.5rem;
-      }
-
-      footer {
-        margin-top: 2.25rem;
-        color: #64748b;
-        font-size: 0.82rem;
-        text-align: center;
-      }
+      footer { margin-top: 2rem; color: #64748b; font-size: 0.84rem; text-align: center; }
+      footer a { color: #cbd5e1; text-decoration: underline; margin: 0 8px; }
 
       @media (max-width: 640px) {
-        h1 {
-          font-size: 2rem;
-        }
-        .games-container {
-          flex-direction: column;
-          align-items: center;
-        }
-        .game-card {
-          width: 100%;
-          max-width: 340px;
-        }
+        h1 { font-size: 2.2rem; }
+        .games-container { flex-direction: column; align-items: center; }
+        .game-card { width: 100%; max-width: 340px; }
       }
     </style>
   </head>
   <body>
-    <span class="hero-badge">Free Browser Games • No Download</span>
+    <span class="hero-badge">Free Browser Games • Online &amp; Solo • No Download</span>
     <h1>🎮 Classic Street Games</h1>
     <p class="subtitle">Play Jack Attack Street &amp; Ayò Ọlọ́pọ́n instantly in your browser</p>
 
+    <div class="quick-bar">
+      <a href="/jackattack/?daily=1" class="daily-pill">🏆 Today’s Daily Seed ▶</a>
+      <form class="join-form" onsubmit="event.preventDefault(); const c=this.code.value.trim().toUpperCase(); if(c.length>=4) location.href='/jackattack/?room='+encodeURIComponent(c);">
+        <input name="code" maxlength="6" placeholder="ROOM CODE" aria-label="Room Code" />
+        <button type="submit">Join Room</button>
+      </form>
+    </div>
+
     <div class="games-container">
       <a href="/jackattack/" class="game-card jackattack">
-        <span class="featured-tag">Featured</span>
-        <div class="game-icon">🃏</div>
+        <span class="featured-tag">Online + Daily</span>
+        <div class="mini-fan" aria-hidden="true">
+          <div class="mini-card c1">2♥</div>
+          <div class="mini-card c2">J♠</div>
+          <div class="mini-card c3">Q♦</div>
+        </div>
         <div class="game-title">Jack Attack Street</div>
         <p class="game-description">
-          Fast-paced street card game with Black Jack +5s, stackable 2s, wild Queens, hand swaps, daily challenges &amp; unlockable themes!
+          Fast-paced street card game with Black Jack +5s, stackable 2s, wild Queens, King swaps, online friend rooms &amp; live daily leaderboard!
         </p>
         <span class="play-btn">Play Now ▶</span>
       </a>
@@ -245,7 +321,7 @@
         <div class="game-icon">🐚</div>
         <div class="game-title">Ayò Ọlọ́pọ́n</div>
         <p class="game-description">
-          Traditional Yorùbá Mancala strategy game. Outsmart smart AI opponents or pass &amp; play in this classic African board game!
+          Traditional Yorùbá Mancala strategy game. Outsmart smart AI masters or pass &amp; play with 3D board view!
         </p>
         <span class="play-btn">Play Now ▶</span>
       </a>
@@ -254,14 +330,14 @@
     <section class="about-section" aria-label="About Classic Street Games">
       <h2>Classic Card &amp; Board Games — Free to Play Online</h2>
       <p>
-        Challenge AI bots or play pass-and-play with friends. <strong>Jack Attack Street</strong> brings classic Switch, Crazy Eights, and Black Jack street rules online with power-ups and daily challenges, while <strong>Ayò Ọlọ́pọ́n</strong> delivers authentic Yorùbá Mancala strategy with 3D board view.
+        Challenge smart AI bots, race the same-seed daily leaderboard, or drop an invite link into your group chat. <strong>Jack Attack Street</strong> brings classic Switch, Crazy Eights, and Black Jack street rules online with power-ups and themes, while <strong>Ayò Ọlọ́pọ́n</strong> delivers authentic Yorùbá Mancala strategy.
       </p>
     </section>
 
     <footer>
       <p style="margin-bottom: 0.5rem;">
-        <a href="/rules/" style="color: #cbd5e1; text-decoration: underline; margin: 0 8px;">Jack Attack Rules</a> •
-        <a href="/ayo-rules/" style="color: #cbd5e1; text-decoration: underline; margin: 0 8px;">Ayò Ọlọ́pọ́n Rules</a>
+        <a href="/rules/">Jack Attack Rules</a> •
+        <a href="/ayo-rules/">Ayò Ọlọ́pọ́n Rules</a>
       </p>
       © 2026 Classic Street Games — Made with ❤️
     </footer>

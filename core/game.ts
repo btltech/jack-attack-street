@@ -177,13 +177,28 @@ export const createNewGame = (
   };
 };
 
+export interface GameRuleFlags {
+  enableAttack2?: boolean;
+  enableBlackJack?: boolean;
+  enableSkip?: boolean;
+  enableReverse?: boolean;
+  enableWild?: boolean;
+  enableSwap?: boolean;
+  enablePeek?: boolean;
+  enableStacking?: boolean;
+}
+
 export const isValidMove = (
   card: Card,
   topDiscard: Card,
   pendingPickup: number,
-  chosenSuit: Suit | null = null
+  chosenSuit: Suit | null = null,
+  rules?: GameRuleFlags
 ): boolean => {
   if (pendingPickup > 0) {
+    if (rules?.enableStacking === false) {
+      return false;
+    }
     // If facing a penalty, must play matching attack card (2 on 2, Black Jack on Black Jack)
     if (isBlackJack(topDiscard)) {
       return isBlackJack(card);
@@ -191,7 +206,7 @@ export const isValidMove = (
     return card.rank === topDiscard.rank;
   }
   // Queen is WILD: can be played on any card when not facing an attack penalty
-  if (card.rank === Rank.Queen) {
+  if (card.rank === Rank.Queen && rules?.enableWild !== false) {
     return true;
   }
   const activeSuit = chosenSuit ?? topDiscard.suit;
@@ -207,7 +222,7 @@ const cloneState = (state: GameState): GameState => {
   };
 };
 
-export const playCard = (currentState: GameState, cardId: string): GameState => {
+export const playCard = (currentState: GameState, cardId: string, rules?: GameRuleFlags): GameState => {
   if (currentState.winnerId) return currentState;
 
   const state = cloneState(currentState);
@@ -238,33 +253,33 @@ export const playCard = (currentState: GameState, cardId: string): GameState => 
   // --- SPECIAL CARD EFFECTS ---
   let stepsToAdvance = 1;
 
-  if (isTwo(card)) {
+  if (isTwo(card) && rules?.enableAttack2 !== false) {
     state.pendingPickup += 2;
     actionText = "💥 +2 Cards Attack!";
-  } else if (isBlackJack(card)) {
+  } else if (isBlackJack(card) && rules?.enableBlackJack !== false) {
     state.pendingPickup += 5;
     actionText = "🔥 +5 Cards MEGA Attack!";
-  } else if (card.rank === Rank.Eight) {
+  } else if (card.rank === Rank.Eight && rules?.enableSkip !== false) {
     actionText = "🚫 SKIP!";
     if (state.players.length === 2) {
       stepsToAdvance = 0;
     } else {
       stepsToAdvance = 2;
     }
-  } else if (card.rank === Rank.Ace) {
+  } else if (card.rank === Rank.Ace && rules?.enableReverse !== false) {
     actionText = "↩️ Reverse!";
     if (state.players.length === 2) {
       stepsToAdvance = 0;
     } else {
       state.direction *= -1;
     }
-  } else if (card.rank === Rank.Queen) {
+  } else if (card.rank === Rank.Queen && rules?.enableWild !== false) {
     // QUEEN = WILD CARD - Choose next suit
     state.pendingSuitChoice = true;
     actionText = "👑 WILD! Choose a suit!";
     // Don't advance turn yet - wait for suit choice
     stepsToAdvance = 0;
-  } else if (card.rank === Rank.King) {
+  } else if (card.rank === Rank.King && rules?.enableSwap !== false) {
     // KING = SWAP HANDS
     if (state.players.length > 2) {
       // In 3+ player games, player chooses who to swap with
@@ -281,7 +296,7 @@ export const playCard = (currentState: GameState, cardId: string): GameState => 
         actionText = "🤴 SWAP! Hands exchanged!";
       }
     }
-  } else if (card.rank === Rank.Seven) {
+  } else if (card.rank === Rank.Seven && rules?.enablePeek !== false) {
     // SEVEN = PEEK - See one of opponent's cards
     const opponents = state.players.filter(p => p.id !== player.id && p.hand.length > 0);
     if (opponents.length > 0) {
@@ -364,14 +379,14 @@ export const drawCard = (currentState: GameState): GameState => {
 
 // --- BOT DECISION LOGIC ---
 
-export const getBotDecision = (state: GameState): { action: 'play' | 'draw', cardId?: string } => {
+export const getBotDecision = (state: GameState, rules?: GameRuleFlags): { action: 'play' | 'draw', cardId?: string } => {
   const bot = state.players[state.currentPlayerIndex];
   const topCard = state.discardPile[state.discardPile.length - 1];
   const pending = state.pendingPickup;
   const difficulty = state.difficulty;
 
   // 1. Get all legal moves
-  const validMoves = bot.hand.filter(card => isValidMove(card, topCard, pending, state.chosenSuit));
+  const validMoves = bot.hand.filter(card => isValidMove(card, topCard, pending, state.chosenSuit, rules));
 
   // If we can't play, we must draw
   if (validMoves.length === 0) {

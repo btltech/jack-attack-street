@@ -1,8 +1,10 @@
-// components/OnlineGame.tsx - Live multiplayer table view powered by Cloudflare Durable Objects
-import React, { useState, useEffect, useMemo } from 'react';
+// components/OnlineGame.tsx - Live multiplayer table with iconic cards, themes, reactions, scoreboard & last-card alarm
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, Suit, Rank, Difficulty } from '../core/types';
 import { isValidMove, sortHand } from '../core/game';
+import type { CardTheme } from '../core/themes';
 import type { View } from '../core/roomEngine';
+import type { OnlineReaction } from '../core/online';
 import { getRoomInviteUrl } from '../core/online';
 import {
   playCardSound, playDrawSound, playAttackSound, playWinSound,
@@ -11,43 +13,43 @@ import {
 import SuitPicker from './SuitPicker';
 import SwapPicker from './SwapPicker';
 import PeekCard from './PeekCard';
+import PlayingCard, { getThemeCardBackStyle } from './PlayingCard';
+import ImpactBanner, { ImpactEvent } from './ImpactBanner';
 
 interface OnlineGameProps {
   view: View;
+  theme: CardTheme;
   error: string | null;
   onClearError: () => void;
   peek: { card: Card; seat: number } | null;
   onClearPeek: () => void;
+  reactions: OnlineReaction[];
   clockOffsetMs: number;
   onPlay: (cardId: string) => void;
   onDraw: () => void;
   onChooseSuit: (suit: Suit) => void;
   onSwap: (seat: number) => void;
+  onReact: (emoji: string) => void;
   onPlayAgain: (size: number, difficulty: Difficulty) => void;
   onLeave: () => void;
 }
 
-const cardBackPattern = {
-  background: `
-    linear-gradient(45deg, #3b82f6 25%, transparent 25%, transparent 75%, #3b82f6 75%, #3b82f6),
-    linear-gradient(45deg, #3b82f6 25%, transparent 25%, transparent 75%, #3b82f6 75%, #3b82f6)
-  `,
-  backgroundColor: '#2563eb',
-  backgroundSize: '20px 20px',
-  backgroundPosition: '0 0, 10px 10px',
-};
+const REACTION_OPTIONS = ['😂', '😱', '🔥', '💀', '👑', 'NOOO!'];
 
 const OnlineGame: React.FC<OnlineGameProps> = ({
   view,
+  theme,
   error,
   onClearError,
   peek,
   onClearPeek,
+  reactions,
   clockOffsetMs,
   onPlay,
   onDraw,
   onChooseSuit,
   onSwap,
+  onReact,
   onPlayAgain,
   onLeave,
 }) => {
@@ -57,13 +59,16 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
+  const [impact, setImpact] = useState<ImpactEvent | null>(null);
 
+  const prevActionRef = useRef<string>('');
   const game = view.game;
   const mySeat = view.you;
   const isMyTurn = !!game && game.current === mySeat && view.phase === 'playing';
   const mustPickup = isMyTurn && (game?.pendingPickup ?? 0) > 0;
+  const cardBackStyle = getThemeCardBackStyle(theme);
 
-  // Countdown timer synced with server clock
+  // Synced turn countdown
   useEffect(() => {
     if (!game || view.phase !== 'playing' || !game.deadline) {
       setSecondsLeft(0);
@@ -78,14 +83,27 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
     return () => clearInterval(id);
   }, [game?.deadline, view.phase, clockOffsetMs]);
 
-  // Auto-clear server error toast
+  // Trigger arcade impact banner on hype moves
+  useEffect(() => {
+    if (!game || game.lastAction === prevActionRef.current) return;
+    prevActionRef.current = game.lastAction;
+    if (game.pendingPickup >= 5) {
+      setImpact({ id: Date.now(), title: `🔥 MEGA +${game.pendingPickup} ATTACK!`, subtitle: 'Defend or draw!', tone: 'attack' });
+      playAttackSound();
+    } else if (game.pendingPickup >= 4) {
+      setImpact({ id: Date.now(), title: `💥 +${game.pendingPickup} STACK!!`, subtitle: 'Attack stacked!', tone: 'attack' });
+      playAttackSound();
+    } else if (game.lastAction.includes('SWAP') || game.lastAction.includes('swapped')) {
+      setImpact({ id: Date.now(), title: '🤴 HANDS SWAPPED!', tone: 'swap' });
+    }
+  }, [game?.lastAction, game?.pendingPickup]);
+
   useEffect(() => {
     if (!error) return;
     const t = window.setTimeout(onClearError, 2600);
     return () => clearTimeout(t);
   }, [error, onClearError]);
 
-  // Win / lose audio cue
   useEffect(() => {
     if (view.phase === 'over' && game && game.winner !== null) {
       if (game.winner === mySeat) playWinSound();
@@ -102,8 +120,8 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
 
   const topCard = game.top;
   const activeSeat = view.seats[game.current];
+  const anyLastCard = view.seats.some((s) => s.handCount === 1);
 
-  // Relative seat ordering so YOU are always at bottom
   const totalSeats = view.seats.length;
   const opponents = view.seats
     .map((seat, idx) => ({ seat, idx, rel: (idx - mySeat + totalSeats) % totalSeats }))
@@ -136,9 +154,7 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
       return;
     }
 
-    const isAttack = card.rank === '2' || (card.rank === 'J' && (card.suit === '♠' || card.suit === '♣'));
     playCardSound();
-    if (isAttack) playAttackSound();
     onPlay(card.id);
   };
 
@@ -191,13 +207,32 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-900 flex flex-col items-center justify-center text-white font-sans p-4 text-center">
         <div className="bg-white/10 p-8 sm:p-10 rounded-[2.5rem] border-4 border-white/20 backdrop-blur-md shadow-2xl max-w-md w-full">
-          <div className="text-7xl sm:text-8xl mb-4 animate-bounce">{isMeWinner ? '🏆' : '😭'}</div>
-          <h1 className="text-5xl sm:text-6xl font-black mb-3 text-yellow-400">
+          <div className="text-7xl sm:text-8xl mb-3 animate-bounce">{isMeWinner ? '🏆' : '😭'}</div>
+          <h1 className="font-display text-5xl sm:text-6xl font-black mb-2 text-yellow-400">
             {isMeWinner ? 'YOU WON!' : 'GAME OVER'}
           </h1>
-          <p className="text-xl font-bold mb-6 text-pink-100">
+          <p className="text-lg sm:text-xl font-bold mb-5 text-pink-100">
             {isMeWinner ? "You're the King of the Street!" : `${winner?.avatar || '🃏'} ${winner?.name || 'Opponent'} won this round!`}
           </p>
+
+          {/* Session Scoreboard */}
+          <div className="bg-black/25 rounded-2xl p-3.5 mb-6 border border-white/15">
+            <div className="text-xs font-extrabold uppercase tracking-wider text-purple-200 mb-2">
+              Room {view.code} Scoreboard
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {view.seats.map((s, idx) => (
+                <div
+                  key={idx}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                    idx === winnerIdx ? 'bg-yellow-400/25 border-yellow-400 text-yellow-200' : 'bg-white/5 border-white/10 text-purple-100'
+                  }`}
+                >
+                  {s.name}: <span className="font-black text-sm tabular-nums">{s.wins}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="flex flex-wrap gap-3 justify-center">
             <button
@@ -239,17 +274,26 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
     hand: Array.from({ length: s.handCount }, (_, i) => ({ id: `${idx}-${i}`, suit: Suit.Spades, rank: Rank.Two })),
   }));
 
+  const myReactions = reactions.filter((r) => r.seat === mySeat);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-600 via-indigo-700 to-purple-800 text-white overflow-hidden relative font-sans select-none touch-none">
+    <div className={`min-h-screen bg-gradient-to-br ${theme.tableBackground} text-white overflow-hidden relative font-sans select-none touch-none ${anyLastCard ? 'ring-inset ring-4 ring-red-500/60' : ''}`}>
       <style>{`
         @keyframes card-glow {
           0%, 100% { box-shadow: 0 0 15px 5px rgba(250, 204, 21, 0.4); }
           50% { box-shadow: 0 0 25px 10px rgba(250, 204, 21, 0.7); }
         }
-        .playable-card-glow {
-          animation: card-glow 1.5s ease-in-out infinite;
-        }
+        .playable-card-glow { animation: card-glow 1.5s ease-in-out infinite; }
       `}</style>
+
+      {/* Center Table Spotlight */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(circle at 50% 45%, rgba(255,255,255,0.12) 0%, transparent 55%)' }}
+      />
+
+      {/* Impact Banner */}
+      <ImpactBanner event={impact} onDone={() => setImpact(null)} />
 
       {/* Power-up Modals */}
       {isMyTurn && game.pendingSuitChoice && (
@@ -270,26 +314,23 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
         />
       )}
 
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 2px, transparent 2px)', backgroundSize: '30px 30px' }} />
-
       {/* TOP BAR */}
       <div className="absolute top-0 left-0 right-0 p-3 sm:p-4 flex justify-between items-start z-50 pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2 flex-wrap">
-          <div className="bg-black/30 backdrop-blur px-3.5 py-2 rounded-full text-white font-bold text-xs sm:text-sm border border-white/20 flex items-center gap-1.5">
+          <div className="bg-black/35 backdrop-blur px-3.5 py-2 rounded-full text-white font-bold text-xs sm:text-sm border border-white/20 flex items-center gap-1.5">
             <span>{game.direction === 1 ? '➡️' : '⬅️'}</span>
             <span className="hidden sm:inline">{game.direction === 1 ? 'Clockwise' : 'Reverse'}</span>
           </div>
           <button
             onClick={handleCopyRoom}
-            className="bg-black/35 hover:bg-black/55 backdrop-blur px-3.5 py-2 rounded-full text-yellow-300 font-black text-xs sm:text-sm border border-yellow-400/40 transition-all"
+            className="bg-black/40 hover:bg-black/60 backdrop-blur px-3.5 py-2 rounded-full text-yellow-300 font-display font-black text-xs sm:text-sm border border-yellow-400/40 transition-all tabular-nums"
             title="Copy room invite link"
           >
-            {copiedCode ? '✓ Link Copied' : `🌐 Room ${view.code}`}
+            {copiedCode ? '✓ Link Copied' : `🌐 ${view.code}`}
           </button>
           <button
             onClick={() => { toggleBackgroundMusic(); setMusicEnabled(!musicEnabled); }}
-            className={`backdrop-blur px-3 py-1.5 rounded-full font-bold border transition-all text-lg ${musicEnabled ? 'bg-green-500/50 border-green-400' : 'bg-black/30 border-white/20'}`}
+            className={`backdrop-blur px-3 py-1.5 rounded-full font-bold border transition-all text-lg ${musicEnabled ? 'bg-green-500/50 border-green-400' : 'bg-black/35 border-white/20'}`}
             aria-label="Toggle sound"
           >
             {musicEnabled ? '🔊' : '🔇'}
@@ -313,7 +354,7 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
       {/* CENTER TABLE */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="absolute top-[20%] md:top-[27%] z-0 w-full text-center pointer-events-none px-4">
-          <span className="inline-block bg-indigo-900/65 text-indigo-100 px-5 py-1.5 rounded-full text-sm md:text-base font-bold backdrop-blur-md border border-indigo-400/50 shadow-lg max-w-[92%] truncate">
+          <span className="inline-block bg-black/40 text-indigo-100 px-5 py-1.5 rounded-full text-sm md:text-base font-bold backdrop-blur-md border border-white/20 shadow-lg max-w-[92%] truncate">
             {game.lastAction}
           </span>
         </div>
@@ -324,20 +365,20 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
             <button
               onClick={handleDrawClick}
               disabled={!isMyTurn}
-              style={{ ...cardBackPattern }}
+              style={cardBackStyle}
               className={`w-24 h-36 md:w-32 md:h-48 rounded-2xl border-4 border-white/30 shadow-2xl flex items-center justify-center transition-all transform ${
                 mustPickup ? 'ring-8 ring-red-500 animate-pulse scale-105' : 'hover:-translate-y-2'
               } ${!isMyTurn ? 'opacity-80 cursor-default' : 'cursor-pointer'}`}
             >
-              <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
-                <span className="font-black text-2xl text-white drop-shadow-md">
+              <div className="bg-black/35 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
+                <span className="font-display font-black text-xl md:text-2xl text-white drop-shadow-md">
                   {mustPickup ? `+${game.pendingPickup}` : 'DRAW'}
                 </span>
               </div>
             </button>
-            <div className="absolute top-1 left-1 w-full h-full rounded-2xl bg-blue-800 -z-10" />
-            <div className="absolute top-2 left-2 w-full h-full rounded-2xl bg-blue-900 -z-20" />
-            <p className="mt-4 text-sm font-bold text-indigo-200 bg-black/30 px-3 py-1 rounded-full">
+            <div className="absolute top-1 left-1 w-full h-full rounded-2xl bg-black/35 -z-10" />
+            <div className="absolute top-2 left-2 w-full h-full rounded-2xl bg-black/45 -z-20" />
+            <p className="mt-4 text-xs sm:text-sm font-bold text-indigo-100 bg-black/35 px-3 py-1 rounded-full tabular-nums">
               {game.deckCount} Cards
             </p>
           </div>
@@ -345,31 +386,19 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
           {/* Discard Pile */}
           <div className="flex flex-col items-center relative">
             {game.pendingPickup > 0 && (
-              <div className="absolute -top-16 bg-red-600 text-white font-black text-lg md:text-xl px-5 py-2 rounded-full shadow-lg animate-bounce z-20 border-4 border-white rotate-6 whitespace-nowrap">
+              <div className="absolute -top-14 bg-red-600 text-white font-display font-black text-lg md:text-xl px-5 py-1.5 rounded-full shadow-lg animate-bounce z-20 border-4 border-white rotate-6 whitespace-nowrap">
                 +{game.pendingPickup} ATTACK!
               </div>
             )}
             {game.chosenSuit && game.pendingPickup === 0 && (
-              <div className="absolute -top-12 bg-yellow-400 text-black font-black text-sm md:text-base px-4 py-1.5 rounded-full shadow-lg z-20 border-2 border-white whitespace-nowrap flex items-center gap-1.5">
+              <div className="absolute -top-12 bg-yellow-400 text-black font-display font-black text-sm md:text-base px-4 py-1.5 rounded-full shadow-lg z-20 border-2 border-white whitespace-nowrap flex items-center gap-1.5">
                 <span>👑 Wild Suit:</span>
                 <span className={`text-xl leading-none ${['♥', '♦'].includes(game.chosenSuit) ? 'text-red-600' : 'text-gray-900'}`}>{game.chosenSuit}</span>
               </div>
             )}
 
-            <div className="w-24 h-36 md:w-32 md:h-48 bg-white text-black rounded-2xl shadow-2xl flex flex-col items-center justify-center border-b-8 border-r-8 border-gray-300 relative overflow-hidden transform rotate-3">
-              <span className="font-black text-6xl md:text-7xl z-10 drop-shadow-sm">{topCard.rank}</span>
-              <span className={`absolute text-[9rem] opacity-10 ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
-
-              <div className="absolute top-1.5 left-2 flex flex-col items-center leading-none">
-                <span className={`text-2xl md:text-3xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.rank}</span>
-                <span className={`text-3xl md:text-4xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
-              </div>
-              <div className="absolute bottom-1.5 right-2 flex flex-col items-center leading-none transform rotate-180">
-                <span className={`text-2xl md:text-3xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.rank}</span>
-                <span className={`text-3xl md:text-4xl font-black ${['♥', '♦'].includes(topCard.suit) ? 'text-red-600' : 'text-gray-900'}`}>{topCard.suit}</span>
-              </div>
-            </div>
-            <p className="mt-4 text-sm font-bold text-indigo-200 bg-black/30 px-3 py-1 rounded-full">
+            <PlayingCard card={topCard} theme={theme} size="discard" style={{ transform: 'rotate(3deg)' }} />
+            <p className="mt-4 text-xs sm:text-sm font-bold text-indigo-100 bg-black/35 px-3 py-1 rounded-full">
               {game.chosenSuit ? `Suit: ${game.chosenSuit}` : 'Top Card'}
             </p>
           </div>
@@ -380,6 +409,8 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
       {opponents.map(({ seat, idx, rel }) => {
         const position = getPosition(rel, totalSeats);
         const isTurn = game.current === idx;
+        const isLastCard = seat.handCount === 1;
+        const seatReacts = reactions.filter((r) => r.seat === idx);
 
         let containerClass = 'absolute flex flex-col items-center p-2 transition-all duration-300 z-20 ';
         if (position === 'top') containerClass += 'top-4 left-1/2 -translate-x-1/2';
@@ -388,11 +419,28 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
 
         return (
           <div key={idx} className={containerClass}>
-            <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border-b-4 mb-2 text-xs sm:text-sm font-bold shadow-lg transition-all ${
-              isTurn ? 'bg-yellow-400 text-black border-yellow-600 scale-105' : 'bg-gray-800/90 border-gray-950 text-gray-200'
+            {/* Floating Reaction Bubbles */}
+            {seatReacts.length > 0 && (
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 bg-white text-black font-display font-black text-base px-3 py-1 rounded-full shadow-xl border-2 border-yellow-400 animate-bounce whitespace-nowrap">
+                {seatReacts[seatReacts.length - 1].emoji}
+              </div>
+            )}
+
+            <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border-b-4 mb-2 text-xs sm:text-sm font-bold shadow-lg transition-all ${
+              isTurn ? 'bg-yellow-400 text-black border-yellow-600 scale-105' : 'bg-gray-900/90 border-black text-gray-200'
             }`}>
               <span className="text-xl">{seat.avatar || (seat.isBot ? '🤖' : '😎')}</span>
               <span>{seat.name}</span>
+              {seat.wins > 0 && (
+                <span className="text-[10px] bg-yellow-500/30 text-yellow-200 px-1.5 py-0.5 rounded-full font-black tabular-nums">
+                  🏆{seat.wins}
+                </span>
+              )}
+              {isLastCard && (
+                <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-black animate-pulse">
+                  ⚠️ LAST CARD!
+                </span>
+              )}
               {!seat.isBot && !seat.connected && (
                 <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded-full">Away</span>
               )}
@@ -403,12 +451,12 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
               {Array.from({ length: Math.min(seat.handCount, 6) }, (_, cIdx) => (
                 <div
                   key={cIdx}
-                  className="w-10 h-14 md:w-12 md:h-16 rounded-lg border-2 border-white shadow-md"
-                  style={{ zIndex: cIdx, ...cardBackPattern }}
+                  className="w-10 h-14 md:w-12 md:h-16 rounded-lg border-2 border-white/80 shadow-md"
+                  style={{ zIndex: cIdx, ...cardBackStyle }}
                 />
               ))}
               {seat.handCount > 6 && (
-                <div className="w-10 h-14 flex items-center justify-center font-bold text-white bg-indigo-900 rounded-lg border-2 border-white z-10 shadow-lg text-xs">
+                <div className="w-10 h-14 flex items-center justify-center font-bold text-white bg-indigo-950 rounded-lg border-2 border-white z-10 shadow-lg text-xs tabular-nums">
                   +{seat.handCount - 6}
                 </div>
               )}
@@ -417,15 +465,21 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
         );
       })}
 
-      {/* MY HAND */}
+      {/* MY HAND + QUICK REACTIONS */}
       <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-safe pt-2 z-30">
-        <div className="flex gap-2.5 items-center mb-3 z-50 flex-wrap justify-center">
-          <div className={`px-5 py-2 rounded-full text-sm md:text-base font-black shadow-xl transition-all border-b-4 flex items-center gap-2 ${
+        {myReactions.length > 0 && (
+          <div className="mb-1 bg-white text-black font-display font-black text-base px-3.5 py-1 rounded-full shadow-xl border-2 border-yellow-400 animate-bounce">
+            {myReactions[myReactions.length - 1].emoji}
+          </div>
+        )}
+
+        <div className="flex gap-2 items-center mb-2.5 z-50 flex-wrap justify-center px-2">
+          <div className={`px-5 py-2 rounded-full text-sm md:text-base font-display font-black shadow-xl transition-all border-b-4 flex items-center gap-2 ${
             isMyTurn
               ? mustPickup
                 ? 'bg-red-500 text-white border-red-700 scale-105 animate-bounce'
                 : 'bg-yellow-400 text-black border-yellow-600'
-              : 'bg-gray-800/90 text-gray-300 border-gray-950'
+              : 'bg-gray-900/90 text-gray-300 border-black'
           }`}>
             <span>
               {isMyTurn
@@ -433,17 +487,32 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
                 : `⏳ ${activeSeat?.name || 'Opponent'}'s turn`}
             </span>
             {secondsLeft > 0 && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${isMyTurn && secondsLeft <= 8 ? 'bg-red-600 text-white' : 'bg-black/20'}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full tabular-nums ${isMyTurn && secondsLeft <= 8 ? 'bg-red-600 text-white' : 'bg-black/25'}`}>
                 {secondsLeft}s
               </span>
             )}
           </div>
+
           <button
             onClick={() => { playClickSound(); setSortedView(s => !s); }}
             className="bg-blue-500 hover:bg-blue-400 text-white font-bold px-3.5 py-2 rounded-full border-b-4 border-blue-700 text-xs sm:text-sm"
           >
-            {sortedView ? '✓ Sorted' : 'Sort Cards'}
+            {sortedView ? '✓ Sorted' : 'Sort'}
           </button>
+
+          {/* 1-Tap Reactions */}
+          <div className="flex items-center gap-1 bg-black/35 backdrop-blur-md px-2 py-1 rounded-full border border-white/15">
+            {REACTION_OPTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => { playClickSound(); onReact(emoji); }}
+                className="hover:scale-125 active:scale-95 transition-transform px-1.5 py-0.5 text-sm sm:text-base font-black"
+                title={`React ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className={`flex flex-wrap justify-center ${hand.length > 9 ? '-space-x-7 md:-space-x-9' : '-space-x-4 md:-space-x-6'} px-4 w-full max-w-5xl pb-4 min-h-[145px] items-end`}>
@@ -451,36 +520,25 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
             const canStack = mustPickup && isValidMove(card, topCard, game.pendingPickup, game.chosenSuit);
             const normalPlay = !mustPickup && isMyTurn && isValidMove(card, topCard, 0, game.chosenSuit);
             const playable = canStack || normalPlay;
-            const isRed = ['♥', '♦'].includes(card.suit);
-            const suitColor = isRed ? 'text-red-600' : 'text-gray-900';
+            const center = (hand.length - 1) / 2;
+            const offset = i - center;
+            const arcLift = Math.max(0, 12 - Math.abs(offset) * 2.5);
 
             return (
-              <div
+              <PlayingCard
                 key={card.id}
+                card={card}
+                theme={theme}
+                playable={playable}
+                canStack={canStack}
+                dimmed={mustPickup && !playable}
                 onClick={() => handleCardClick(card)}
                 style={{
-                  marginBottom: playable ? '22px' : '0px',
+                  marginBottom: `${(playable ? 22 : 0) + arcLift}px`,
                   zIndex: i,
-                  transform: `rotate(${(i - hand.length / 2) * (hand.length > 9 ? 1.2 : 2)}deg)`,
+                  transform: `rotate(${offset * (hand.length > 9 ? 1.2 : 2)}deg)`,
                 }}
-                className={`relative w-20 h-32 md:w-24 md:h-36 rounded-2xl border-b-4 border-gray-200 flex flex-col justify-between p-2 shadow-xl transition-all duration-200 select-none bg-white ${
-                  playable
-                    ? 'cursor-pointer hover:scale-110 hover:-translate-y-4 hover:shadow-2xl z-40 ring-4 ring-yellow-400 ring-offset-2 ring-offset-purple-800 playable-card-glow'
-                    : 'cursor-default opacity-90'
-                } ${mustPickup && !playable ? 'grayscale opacity-60' : ''} ${canStack ? 'ring-red-500 animate-pulse' : ''}`}
-              >
-                <div className="flex flex-col items-center leading-none self-start">
-                  <span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span>
-                  <span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span>
-                </div>
-                <div className={`absolute inset-0 flex items-center justify-center text-7xl opacity-10 pointer-events-none ${suitColor}`}>
-                  {card.suit}
-                </div>
-                <div className="flex flex-col items-center leading-none self-end transform rotate-180">
-                  <span className={`font-black text-2xl md:text-3xl ${suitColor}`}>{card.rank}</span>
-                  <span className={`text-3xl md:text-4xl font-black ${suitColor}`}>{card.suit}</span>
-                </div>
-              </div>
+              />
             );
           })}
         </div>

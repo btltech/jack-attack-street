@@ -23,6 +23,7 @@ export interface RoomData {
   game: GameState | null;
   deadline: number;  // epoch ms when the current seat will be auto-played
   createdAt: number;
+  wins?: Record<string, number>; // session wins keyed by seat.id
 }
 
 export const MAX_SEATS = 4;
@@ -38,6 +39,7 @@ export type ClientMsg =
   | { t: 'draw' }
   | { t: 'suit'; suit: string }
   | { t: 'swap'; seat: number }
+  | { t: 'react'; emoji: string }
   | { t: 'ping' };
 
 export interface SeatView {
@@ -46,6 +48,7 @@ export interface SeatView {
   connected: boolean;
   avatar: string;
   handCount: number;
+  wins: number;
 }
 
 export interface GameView {
@@ -74,6 +77,7 @@ export interface View {
 export type ServerMsg =
   | { t: 'state'; view: View; now: number }
   | { t: 'peek'; card: Card; seat: number }
+  | { t: 'react'; seat: number; emoji: string }
   | { t: 'error'; error: string }
   | { t: 'pong' };
 
@@ -167,6 +171,12 @@ const finish = (room: RoomData, now: number): void => {
   if (room.game?.winnerId) {
     room.phase = 'over';
     room.deadline = 0;
+    const winIdx = room.game.players.findIndex(p => p.id === room.game!.winnerId);
+    const winSeat = room.seats[winIdx];
+    if (winSeat) {
+      room.wins = room.wins || {};
+      room.wins[winSeat.id] = (room.wins[winSeat.id] || 0) + 1;
+    }
   } else {
     setDeadline(room, now);
   }
@@ -260,6 +270,7 @@ export const view = (room: RoomData, id: string): View => {
       connected: s.connected,
       avatar: g ? g.players[i]?.avatar ?? '' : '',
       handCount: g ? g.players[i]?.hand.length ?? 0 : 0,
+      wins: room.wins?.[s.id] ?? 0,
     })),
     game: g ? {
       hand: you >= 0 ? g.players[you].hand : [],
