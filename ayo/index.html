@@ -60,6 +60,23 @@
         outline: 3px solid #fbbf24;
         outline-offset: 2px;
       }
+      @keyframes ayoSeedDrop {
+        0% {
+          transform: translate(-50%, -34px) scale(1.25);
+          opacity: 1;
+        }
+        72% {
+          transform: translate(-50%, 6px) scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(-50%, 10px) scale(0.85);
+          opacity: 0;
+        }
+      }
+      .animate-seed-drop {
+        animation: ayoSeedDrop 290ms cubic-bezier(0.35, 0.02, 0.65, 1) forwards;
+      }
     </style>
   </head>
   <body>

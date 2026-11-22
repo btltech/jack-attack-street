@@ -57,6 +57,9 @@ const AyoApp: React.FC = () => {
   const [displayScores, setDisplayScores] = useState<[number, number]>([0, 0]);
   const [animatingPit, setAnimatingPit] = useState<number | null>(null);
   const [animStepKind, setAnimStepKind] = useState<'drop' | 'scoop' | 'capture' | null>(null);
+  const [handPit, setHandPit] = useState<number | null>(null);
+  const [handPhase, setHandPhase] = useState<'idle' | 'scoop' | 'glide' | 'drop' | 'capture'>('idle');
+  const [droppingSeedKey, setDroppingSeedKey] = useState<number>(0);
   const [seedsInHand, setSeedsInHand] = useState<number>(0);
   const [capturedPits, setCapturedPits] = useState<number[]>([]);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
@@ -126,6 +129,9 @@ const AyoApp: React.FC = () => {
     clearAnimTimers();
     setIsAnimating(false);
     setAnimatingPit(null);
+    setHandPit(null);
+    setHandPhase('idle');
+    setSeedsInHand(0);
     setCapturedPits([]);
     setCaptureFlash(null);
     setLastXpEarned(0);
@@ -158,41 +164,91 @@ const AyoApp: React.FC = () => {
     setIsAnimating(true);
     clearAnimTimers();
 
-    // Immediate tactile seed-scoop rattle when lifting seeds from the chosen pit
-    playSeedScoop(state.pits[pit]);
-
-    // Deliberate, calm wooden-board sowing rhythm so every seed drop, relay scoop, and 4-seed capture is effortless to follow
+    // Deliberate, calm wooden-board sowing rhythm with visible hand gliding & dropping 1 seed at a time
     const baseDelay = sowPace === 'slow' ? 920 : sowPace === 'brisk' ? 380 : 680;
-    let elapsed = 260;
+    const glideMs = Math.round(baseDelay * 0.48);
+    const initialScoopMs = sowPace === 'slow' ? 620 : sowPace === 'brisk' ? 260 : 460;
+
+    // Step 0: Hand scoops all seeds out of the starting pit
+    const initialPicked = state.pits[pit];
+    const pickedPits = [...state.pits];
+    pickedPits[pit] = 0;
+    setHandPit(pit);
+    setHandPhase('scoop');
+    setAnimatingPit(pit);
+    setAnimStepKind('scoop');
+    setDisplayPits(pickedPits);
+    setSeedsInHand(initialPicked);
+    setCapturedPits([]);
+    playSeedScoop(initialPicked);
+
+    let elapsed = initialScoopMs;
 
     steps.forEach((step, i) => {
-      const tid = window.setTimeout(() => {
-        setDisplayPits(step.pits);
-        setDisplayScores(step.scores);
-        setAnimatingPit(step.activePit);
-        setAnimStepKind(step.kind);
-        setSeedsInHand(step.seedsInHand);
+      if (step.kind === 'drop') {
+        // Sub-phase A: Hand glides smoothly to the next pit
+        const glideTid = window.setTimeout(() => {
+          setHandPit(step.activePit);
+          setHandPhase('glide');
+          setCapturedPits([]);
+        }, elapsed);
+        animTimersRef.current.push(glideTid);
 
-        if (step.kind === 'capture' && step.capturedPits && step.capturedPits.length > 0) {
-          setCapturedPits(step.capturedPits);
-          playCaptureSound(step.capturedCount || 4);
-          const capLabel = step.capturedBy !== undefined
-            ? `${names[step.capturedBy]} +${step.capturedCount}`
-            : `+${step.capturedCount} Captured`;
-          setCaptureFlash(capLabel);
-          window.setTimeout(() => setCaptureFlash(null), 1300);
-        } else if (step.kind === 'scoop') {
+        // Sub-phase B: Hand drops 1 physical seed downward into the pit
+        const dropTid = window.setTimeout(() => {
+          setHandPit(step.activePit);
+          setHandPhase('drop');
+          setDroppingSeedKey((k) => k + 1);
+          setDisplayPits(step.pits);
+          setDisplayScores(step.scores);
+          setAnimatingPit(step.activePit);
+          setAnimStepKind('drop');
+          setSeedsInHand(step.seedsInHand);
+          playSeedClack(i, step.pits[step.activePit]);
+        }, elapsed + glideMs);
+        animTimersRef.current.push(dropTid);
+
+        elapsed += baseDelay;
+      } else if (step.kind === 'scoop') {
+        // Relay scoop: hand dips into the non-empty pit and lifts all its seeds
+        const scoopTid = window.setTimeout(() => {
+          setHandPit(step.activePit);
+          setHandPhase('scoop');
+          setDisplayPits(step.pits);
+          setDisplayScores(step.scores);
+          setAnimatingPit(step.activePit);
+          setAnimStepKind('scoop');
+          setSeedsInHand(step.seedsInHand);
           setCapturedPits([]);
           playSeedScoop(step.seedsInHand);
-        } else {
-          setCapturedPits([]);
-          playSeedClack(i, step.pits[step.activePit]);
-        }
-      }, elapsed);
-      animTimersRef.current.push(tid);
+        }, elapsed);
+        animTimersRef.current.push(scoopTid);
 
-      // Generous pauses on relay scoops and 4-seed captures so the board breathes naturally
-      elapsed += step.kind === 'capture' ? baseDelay + 560 : step.kind === 'scoop' ? baseDelay + 420 : baseDelay;
+        elapsed += baseDelay + 420;
+      } else {
+        // Capture: 4-seed (or Oware 2-3) capture highlight + talking-drum audio
+        const capTid = window.setTimeout(() => {
+          setHandPit(step.activePit);
+          setHandPhase('capture');
+          setDisplayPits(step.pits);
+          setDisplayScores(step.scores);
+          setAnimatingPit(step.activePit);
+          setAnimStepKind('capture');
+          setSeedsInHand(step.seedsInHand);
+          if (step.capturedPits && step.capturedPits.length > 0) {
+            setCapturedPits(step.capturedPits);
+            playCaptureSound(step.capturedCount || 4);
+            const capLabel = step.capturedBy !== undefined
+              ? `${names[step.capturedBy]} +${step.capturedCount}`
+              : `+${step.capturedCount} Captured`;
+            setCaptureFlash(capLabel);
+            window.setTimeout(() => setCaptureFlash(null), 1300);
+          }
+        }, elapsed);
+        animTimersRef.current.push(capTid);
+
+        elapsed += baseDelay + 540;
+      }
     });
 
     const endTid = window.setTimeout(() => {
@@ -201,6 +257,8 @@ const AyoApp: React.FC = () => {
       setDisplayScores([nextState.scores[0], nextState.scores[1]]);
       setAnimatingPit(null);
       setAnimStepKind(null);
+      setHandPit(null);
+      setHandPhase('idle');
       setSeedsInHand(0);
       setCapturedPits([]);
       setIsAnimating(false);
@@ -338,6 +396,75 @@ const AyoApp: React.FC = () => {
           {/* Decorative wood grain sheen */}
           <div className="absolute inset-0 rounded-[2rem] opacity-20 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 2px, transparent 2px, transparent 18px)' }} />
 
+          {/* Pits Container + Gliding Hand & Single-Seed Drop Overlay */}
+          <div className="relative">
+            {handPit !== null && (() => {
+              const topIdx = topIndices.indexOf(handPit);
+              const botIdx = bottomIndices.indexOf(handPit);
+              const col = topIdx !== -1 ? topIdx : botIdx;
+              if (col === -1) return null;
+              const isTopRow = topIdx !== -1;
+              const leftPct = ((col + 0.5) / 6) * 100;
+              const topPct = isTopRow ? 24 : 76;
+              const glideDuration = sowPace === 'slow' ? 430 : sowPace === 'brisk' ? 180 : 320;
+              const handTransform =
+                handPhase === 'scoop'
+                  ? 'translate(-50%, -44%) scale(0.94)'
+                  : handPhase === 'drop'
+                    ? 'translate(-50%, -68%) rotate(-10deg) scale(1.02)'
+                    : 'translate(-50%, -80%) scale(1.05)';
+              return (
+                <div
+                  aria-hidden="true"
+                  className="absolute pointer-events-none z-30"
+                  style={{
+                    left: `${leftPct}%`,
+                    top: `${topPct}%`,
+                    transition: `left ${glideDuration}ms cubic-bezier(0.32, 0.08, 0.24, 1), top ${glideDuration}ms cubic-bezier(0.32, 0.08, 0.24, 1)`,
+                  }}
+                >
+                  {/* Single falling seed dropping from hand into the pit */}
+                  {handPhase === 'drop' && (
+                    <span
+                      key={droppingSeedKey}
+                      className="animate-seed-drop absolute left-1/2 top-0 w-4 h-4 sm:w-5 sm:h-5 rounded-full shadow-[0_6px_14px_rgba(0,0,0,0.65)]"
+                      style={{
+                        background: currentSkin.gradient,
+                        border: `2px solid ${currentSkin.border}`,
+                      }}
+                    />
+                  )}
+
+                  {/* Cupped Hand carrying remaining seeds */}
+                  <div
+                    className="relative flex flex-col items-center transition-transform duration-200"
+                    style={{ transform: handTransform }}
+                  >
+                    <div className="relative bg-slate-950/90 border-2 border-amber-400 rounded-2xl px-2.5 py-1.5 shadow-[0_14px_28px_rgba(0,0,0,0.75)] flex items-center gap-1.5">
+                      <span className="text-xl sm:text-2xl leading-none select-none">
+                        {handPhase === 'scoop' ? '✊' : '🫳'}
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        {Array.from({ length: Math.min(seedsInHand, 4) }, (_, idx) => (
+                          <span
+                            key={idx}
+                            className="w-2.5 h-2.5 rounded-full inline-block shadow"
+                            style={{
+                              background: currentSkin.gradient,
+                              border: `1px solid ${currentSkin.border}`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span className="font-display font-black text-amber-300 text-xs sm:text-sm tabular-nums pl-0.5">
+                        {seedsInHand}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
           {/* Top Row (Opponent) */}
           <div className="grid grid-cols-6 gap-2 sm:gap-3.5 mb-3 sm:mb-4 relative z-10">
             {topIndices.map((pitIdx) => {
@@ -407,6 +534,7 @@ const AyoApp: React.FC = () => {
                 </button>
               );
             })}
+          </div>
           </div>
         </div>
 
