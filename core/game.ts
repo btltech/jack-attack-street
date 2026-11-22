@@ -155,12 +155,25 @@ export const createNewGame = (
   };
 };
 
-export const isValidMove = (card: Card, topDiscard: Card, pendingPickup: number): boolean => {
+export const isValidMove = (
+  card: Card,
+  topDiscard: Card,
+  pendingPickup: number,
+  chosenSuit: Suit | null = null
+): boolean => {
   if (pendingPickup > 0) {
-    // If facing a penalty, must play rank match (defend/stack)
+    // If facing a penalty, must play matching attack card (2 on 2, Black Jack on Black Jack)
+    if (isBlackJack(topDiscard)) {
+      return isBlackJack(card);
+    }
     return card.rank === topDiscard.rank;
   }
-  return card.suit === topDiscard.suit || card.rank === topDiscard.rank;
+  // Queen is WILD: can be played on any card when not facing an attack penalty
+  if (card.rank === Rank.Queen) {
+    return true;
+  }
+  const activeSuit = chosenSuit ?? topDiscard.suit;
+  return card.suit === activeSuit || card.rank === topDiscard.rank;
 };
 
 const cloneState = (state: GameState): GameState => {
@@ -186,12 +199,17 @@ export const playCard = (currentState: GameState, cardId: string): GameState => 
   player.hand.splice(cardIndex, 1);
   state.discardPile.push(card);
 
+  // Clear previous wild suit / peek overlay once a new card is played
+  state.chosenSuit = null;
+  state.peekingCard = null;
+  state.peekingPlayerId = null;
+
   let actionText = `${player.name} played ${card.rank}${card.suit}`;
 
   // WIN CONDITION
   if (player.hand.length === 0) {
     state.winnerId = player.id;
-    state.lastAction = `${player.name} wins! 🎉`;
+    state.lastAction = player.name === 'You' ? 'You win! 🎉' : `${player.name} wins! 🎉`;
     return state;
   }
 
@@ -247,9 +265,14 @@ export const playCard = (currentState: GameState, cardId: string): GameState => 
     if (opponents.length > 0) {
       const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
       const randomCardIndex = Math.floor(Math.random() * randomOpponent.hand.length);
-      state.peekingCard = randomOpponent.hand[randomCardIndex];
-      state.peekingPlayerId = randomOpponent.id;
-      actionText = `👁️ PEEK! Saw ${randomOpponent.name}'s card!`;
+      if (!player.isBot) {
+        state.peekingCard = randomOpponent.hand[randomCardIndex];
+        state.peekingPlayerId = randomOpponent.id;
+        actionText = `👁️ PEEK! Saw ${randomOpponent.name}'s card!`;
+      } else {
+        const targetLabel = randomOpponent.name === 'You' ? 'your' : `${randomOpponent.name}'s`;
+        actionText = `👁️ ${player.name} peeked at ${targetLabel} hand!`;
+      }
     }
   }
 
@@ -326,7 +349,7 @@ export const getBotDecision = (state: GameState): { action: 'play' | 'draw', car
   const difficulty = state.difficulty;
 
   // 1. Get all legal moves
-  const validMoves = bot.hand.filter(card => isValidMove(card, topCard, pending));
+  const validMoves = bot.hand.filter(card => isValidMove(card, topCard, pending, state.chosenSuit));
 
   // If we can't play, we must draw
   if (validMoves.length === 0) {

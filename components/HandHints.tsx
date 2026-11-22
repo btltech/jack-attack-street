@@ -18,12 +18,13 @@ interface CardSuggestion {
 const getCardSuggestions = (gameState: GameState): CardSuggestion[] => {
     const player = gameState.players[0]; // Human player is always index 0
     const topCard = gameState.discardPile[gameState.discardPile.length - 1];
+    const activeSuit = gameState.chosenSuit ?? topCard.suit;
     const suggestions: CardSuggestion[] = [];
 
     const mustDefend = gameState.pendingPickup > 0;
 
     player.hand.forEach(card => {
-        const isValid = isValidMove(card, topCard, gameState.pendingPickup);
+        const isValid = isValidMove(card, topCard, gameState.pendingPickup, gameState.chosenSuit);
         if (!isValid) return;
 
         let priority = 0;
@@ -53,8 +54,8 @@ const getCardSuggestions = (gameState: GameState): CardSuggestion[] => {
             // Wild cards are flexible but valuable
             else if (card.rank === 'Q') {
                 // Only suggest Queen if we have few matching cards
-                const matchingCards = player.hand.filter(c => c.suit === topCard.suit).length;
-                if (matchingCards <= 2) {
+                const matchingCards = player.hand.filter(c => c.suit === activeSuit && c.rank !== 'Q').length;
+                if (matchingCards <= 1) {
                     priority = 60;
                     reason = '👑 Wild - change suit!';
                 } else {
@@ -116,23 +117,25 @@ const HandHints: React.FC<HandHintsProps> = ({ gameState, enabled }) => {
     const suggestions = getCardSuggestions(gameState);
     const bestSuggestion = suggestions[0];
 
+    const positionClasses = "fixed top-[4.25rem] right-4 z-40 max-w-[260px] text-center shadow-lg pointer-events-none";
+
     if (!bestSuggestion) {
         if (gameState.pendingPickup > 0) {
             return (
-                <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-full font-bold text-sm backdrop-blur-sm border-2 border-red-400 animate-pulse z-40 max-w-xs text-center">
+                <div className={`${positionClasses} bg-red-500/95 text-white px-4 py-2 rounded-2xl font-bold text-xs md:text-sm backdrop-blur-sm border-2 border-red-300 animate-pulse`}>
                     💡 No defense! Draw {gameState.pendingPickup} cards
                 </div>
             );
         }
         return (
-            <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-blue-500/90 text-white px-4 py-2 rounded-full font-bold text-sm backdrop-blur-sm border-2 border-blue-400 z-40 max-w-xs text-center">
+            <div className={`${positionClasses} bg-blue-500/95 text-white px-4 py-2 rounded-2xl font-bold text-xs md:text-sm backdrop-blur-sm border-2 border-blue-300`}>
                 💡 No playable cards - draw one!
             </div>
         );
     }
 
     return (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-gradient-to-r from-green-500/90 to-emerald-500/90 text-white px-4 py-2 rounded-full font-bold text-sm backdrop-blur-sm border-2 border-green-400 z-40 max-w-xs text-center">
+        <div className={`${positionClasses} bg-gradient-to-r from-green-500/95 to-emerald-600/95 text-white px-4 py-2 rounded-2xl font-bold text-xs md:text-sm backdrop-blur-sm border-2 border-green-300`}>
             💡 Tip: Play {bestSuggestion.card.rank}{bestSuggestion.card.suit} - {bestSuggestion.reason}
         </div>
     );
