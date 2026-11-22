@@ -6,7 +6,7 @@ import {
   createAyoGame, applyAyoMove, getLegalMoves, chooseAyoAIMove,
 } from './engine';
 import {
-  playSeedClack, playCaptureSound, playAyoClick, playAyoWinSound,
+  playSeedClack, playSeedScoop, playCaptureSound, playAyoClick, playAyoWinSound,
   playAyoGoodGameSound, setAyoMuted, isAyoMuted,
 } from './sounds';
 import {
@@ -158,6 +158,9 @@ const AyoApp: React.FC = () => {
     setIsAnimating(true);
     clearAnimTimers();
 
+    // Immediate tactile seed-scoop rattle when lifting seeds from the chosen pit
+    playSeedScoop(state.pits[pit]);
+
     // Deliberate, calm wooden-board sowing rhythm so every seed drop, relay scoop, and 4-seed capture is effortless to follow
     const baseDelay = sowPace === 'slow' ? 920 : sowPace === 'brisk' ? 380 : 680;
     let elapsed = 260;
@@ -180,10 +183,10 @@ const AyoApp: React.FC = () => {
           window.setTimeout(() => setCaptureFlash(null), 1300);
         } else if (step.kind === 'scoop') {
           setCapturedPits([]);
-          playAyoClick();
+          playSeedScoop(step.seedsInHand);
         } else {
           setCapturedPits([]);
-          playSeedClack(i);
+          playSeedClack(i, step.pits[step.activePit]);
         }
       }, elapsed);
       animTimersRef.current.push(tid);
