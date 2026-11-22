@@ -81,6 +81,10 @@ const isBlackJack = (card: Card): boolean => {
   return card.rank === Rank.Jack && (card.suit === Suit.Spades || card.suit === Suit.Clubs);
 };
 
+const isRedJack = (card: Card): boolean => {
+  return card.rank === Rank.Jack && (card.suit === Suit.Hearts || card.suit === Suit.Diamonds);
+};
+
 const isTwo = (card: Card): boolean => {
   return card.rank === Rank.Two;
 };
@@ -200,8 +204,9 @@ export const isValidMove = (
       return false;
     }
     // If facing a penalty, must play matching attack card (2 on 2, Black Jack on Black Jack)
+    // Classic street rule: a Red Jack (J♥/J♦) cancels a Black Jack (+5) attack back to 0!
     if (isBlackJack(topDiscard)) {
-      return isBlackJack(card);
+      return isBlackJack(card) || isRedJack(card);
     }
     return card.rank === topDiscard.rank;
   }
@@ -232,6 +237,8 @@ export const playCard = (currentState: GameState, cardId: string, rules?: GameRu
   if (cardIndex === -1) return currentState;
 
   const card = player.hand[cardIndex];
+  const prevTop = state.discardPile[state.discardPile.length - 1];
+  const wasFacingBlackJack = state.pendingPickup > 0 && prevTop && isBlackJack(prevTop);
 
   player.hand.splice(cardIndex, 1);
   state.discardPile.push(card);
@@ -259,6 +266,9 @@ export const playCard = (currentState: GameState, cardId: string, rules?: GameRu
   } else if (isBlackJack(card) && rules?.enableBlackJack !== false) {
     state.pendingPickup += 5;
     actionText = "🔥 +5 Cards MEGA Attack!";
+  } else if (isRedJack(card) && wasFacingBlackJack) {
+    state.pendingPickup = 0;
+    actionText = `🛡️ RED JACK! ${player.name} canceled the Black Jack!`;
   } else if (card.rank === Rank.Eight && rules?.enableSkip !== false) {
     actionText = "🚫 SKIP!";
     if (state.players.length === 2) {

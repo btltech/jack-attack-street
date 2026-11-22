@@ -515,11 +515,26 @@ const App: React.FC = () => {
     }
   };
 
+  // Helper: trigger Pass & Play privacy screen when turn passes to another human
+  const maybeTriggerPass = (prevIdx: number, nextState: GameState): GameState => {
+    if (
+      nextState.gameMode === GameMode.LocalMultiplayer &&
+      !nextState.winnerId &&
+      !nextState.pendingSuitChoice &&
+      !nextState.pendingSwap &&
+      nextState.currentPlayerIndex !== prevIdx
+    ) {
+      return triggerPassScreen(nextState);
+    }
+    return nextState;
+  };
+
   // --- POWER-UP HANDLERS ---
   const handleSuitChoice = (suit: Suit) => {
     if (!gameState) return;
     playClickSound();
-    const newState = chooseSuit(gameState, suit);
+    const prevIdx = gameState.currentPlayerIndex;
+    const newState = maybeTriggerPass(prevIdx, chooseSuit(gameState, suit));
     setGameState(newState);
   };
 
@@ -527,7 +542,8 @@ const App: React.FC = () => {
     if (!gameState) return;
     playClickSound();
     showCommentary('swap', 'top');
-    const newState = swapWith(gameState, targetPlayerId);
+    const prevIdx = gameState.currentPlayerIndex;
+    const newState = maybeTriggerPass(prevIdx, swapWith(gameState, targetPlayerId));
     setGameState(newState);
   };
 
@@ -560,7 +576,7 @@ const App: React.FC = () => {
         activeRules?.enableStacking === false
           ? '🛡️ Stacking disabled in Custom Rules — Pick Up!'
           : isBlackJackTop
-            ? `🛡️ Defend with a Black Jack (J♠/J♣) or Pick Up!`
+            ? `🛡️ Stack a Black Jack (J♠/J♣), cancel with a Red Jack (J♥/J♦), or Pick Up!`
             : `🛡️ Defend with a ${topCard.rank} or Pick Up!`
       );
       setTimeout(() => setErrorMsg(null), 2500);
@@ -570,6 +586,7 @@ const App: React.FC = () => {
     if (valid) {
       setErrorMsg(null);
       const rect = e.currentTarget.getBoundingClientRect();
+      const prevIdx = gameState.currentPlayerIndex;
 
       // Check if it's an attack card
       const isAttackCard = card.rank === '2' || (card.rank === 'J' && (card.suit === '♠' || card.suit === '♣'));
@@ -578,27 +595,31 @@ const App: React.FC = () => {
         playCardSound();
         // Save state for undo before playing
         const stateWithUndo = saveStateForUndo(gameState);
-        const newState = playCard(stateWithUndo, card.id, activeRules);
+        const rawNext = playCard(stateWithUndo, card.id, activeRules);
 
         // Track cards played for stats
         cardsPlayedRef.current++;
-        if (newState.pendingPickup >= 5) {
+        if (rawNext.lastAction.includes('RED JACK')) {
+          playPowerUpSound();
+          setImpact({ id: Date.now(), title: '🛡️ RED JACK CANCEL!', subtitle: 'Black Jack attack neutralized!', tone: 'shield' });
+        } else if (rawNext.pendingPickup >= 5) {
           attackCardsUsedRef.current++;
           triggerShake();
-          setImpact({ id: Date.now(), title: `🔥 MEGA +${newState.pendingPickup} ATTACK!`, tone: 'attack' });
-        } else if (newState.pendingPickup >= 4) {
+          setImpact({ id: Date.now(), title: `🔥 MEGA +${rawNext.pendingPickup} ATTACK!`, tone: 'attack' });
+        } else if (rawNext.pendingPickup >= 4) {
           attackCardsUsedRef.current++;
           triggerShake();
-          setImpact({ id: Date.now(), title: `💥 +${newState.pendingPickup} STACK!!`, tone: 'attack' });
-        } else if (isAttackCard && newState.pendingPickup > 0) {
+          setImpact({ id: Date.now(), title: `💥 +${rawNext.pendingPickup} STACK!!`, tone: 'attack' });
+        } else if (isAttackCard && rawNext.pendingPickup > 0) {
           attackCardsUsedRef.current++;
           triggerShake();
         } else if (card.rank === 'K' && (!activeRules || activeRules.enableSwap)) {
           setImpact({ id: Date.now(), title: '🤴 HANDS SWAPPED!', tone: 'swap' });
-        } else if (newState.players[0]?.hand.length === 1 && !newState.winnerId) {
+        } else if (rawNext.players[prevIdx]?.hand.length === 1 && !rawNext.winnerId) {
           setImpact({ id: Date.now(), title: '⚠️ LAST CARD!', subtitle: 'One more to win!', tone: 'danger' });
         }
 
+        const newState = maybeTriggerPass(prevIdx, rawNext);
         setGameState(newState);
         checkWin(newState);
       });
@@ -617,10 +638,11 @@ const App: React.FC = () => {
     if (view !== 'playing' || !gameState || flyingCard) return;
     if (gameState.players[gameState.currentPlayerIndex].isBot) return;
 
+    const prevIdx = gameState.currentPlayerIndex;
     const wasPenalty = gameState.pendingPickup > 0;
     const finishDraw = () => {
       playDrawSound();
-      const newState = drawCard(gameState);
+      const newState = maybeTriggerPass(prevIdx, drawCard(gameState));
       setGameState(newState);
       setErrorMsg(null);
       if (wasPenalty) {
@@ -651,7 +673,8 @@ const App: React.FC = () => {
 
     setTimeout(() => {
       const newState = { ...gameState, players: [...gameState.players] };
-      const p = newState.players[0];
+      const targetIdx = gameState.gameMode === GameMode.LocalMultiplayer ? gameState.currentPlayerIndex : 0;
+      const p = newState.players[targetIdx];
       p.hand = sortHand(p.hand);
       setGameState(newState);
 
@@ -1205,8 +1228,9 @@ const App: React.FC = () => {
 
   // 2. GAME OVER
   if (view === 'gameover' && gameState) {
+    const isLocalMP = gameState.gameMode === GameMode.LocalMultiplayer;
     const humanPlayer = gameState.players[0];
-    const isHumanWinner = gameState.winnerId === humanPlayer.id;
+    const isHumanWinner = isLocalMP ? true : gameState.winnerId === humanPlayer.id;
     const winner = gameState.players.find(p => p.id === gameState.winnerId);
     const shareText = isHumanWinner
       ? isDailySeedRun
@@ -1247,7 +1271,13 @@ const App: React.FC = () => {
             {isHumanWinner ? '🏆' : humanPlayer.hand.length <= 2 ? '🤝' : '🙌'}
           </div>
           <h1 className="font-display text-5xl sm:text-6xl font-black mb-3 drop-shadow-lg text-yellow-400">
-            {isHumanWinner ? 'YOU WON!' : humanPlayer.hand.length <= 2 ? 'SO CLOSE!' : 'GOOD GAME!'}
+            {isLocalMP
+              ? `${winner?.name?.toUpperCase() || 'PLAYER'} WON!`
+              : isHumanWinner
+                ? 'YOU WON!'
+                : humanPlayer.hand.length <= 2
+                  ? 'SO CLOSE!'
+                  : 'GOOD GAME!'}
           </h1>
           <p className="text-lg sm:text-xl font-bold mb-5 text-pink-100">
             {isHumanWinner
@@ -1336,10 +1366,12 @@ const App: React.FC = () => {
 
   if (!gameState) return null;
 
-  const humanPlayer = gameState.players[0];
+  const isLocalMP = gameState.gameMode === GameMode.LocalMultiplayer;
+  const activeViewerIdx = isLocalMP ? gameState.currentPlayerIndex : 0;
+  const humanPlayer = gameState.players[activeViewerIdx];
   const topCard = gameState.discardPile[gameState.discardPile.length - 1];
   const prevDiscardCards = gameState.discardPile.slice(-3, -1);
-  const isPlayerTurn = gameState.currentPlayerIndex === 0;
+  const isPlayerTurn = isLocalMP ? !gameState.showPassScreen : gameState.currentPlayerIndex === 0;
   const mustPickup = isPlayerTurn && gameState.pendingPickup > 0;
   const activeRules = isDailySeedRun ? undefined : gameRules;
   const themeCardBack = getThemeCardBackStyle(currentTheme);
@@ -1583,10 +1615,11 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTS */}
+      {/* OPPONENTS (Bots in vs Bot, Other Human Players in Pass & Play) */}
       {gameState.players.map((p, idx) => {
-        if (!p.isBot) return null;
-        const position = getPlayerPosition(idx, gameState.players.length);
+        if (idx === activeViewerIdx) return null;
+        const relIdx = (idx - activeViewerIdx + gameState.players.length) % gameState.players.length;
+        const position = getPlayerPosition(relIdx, gameState.players.length);
         const isCurrentTurn = gameState.players[gameState.currentPlayerIndex].id === p.id;
 
         let containerClass = "absolute flex flex-col items-center p-2 transition-all duration-300 z-20 ";
@@ -1648,7 +1681,9 @@ const App: React.FC = () => {
         {/* Control Bar */}
         <div className="flex gap-3 items-center mb-3 z-50">
           <div className={`px-6 py-2.5 rounded-full text-base md:text-lg font-display font-black shadow-xl transition-all border-b-4 ${isPlayerTurn ? mustPickup ? 'bg-red-500 text-white border-red-700 scale-105 animate-bounce' : 'bg-yellow-400 text-black border-yellow-600' : 'bg-gray-800 text-gray-400 border-gray-950'}`}>
-            {isPlayerTurn ? (mustPickup ? "DEFEND OR DRAW!" : "YOUR TURN!") : "WAITING..."}
+            {isPlayerTurn
+              ? (mustPickup ? 'DEFEND OR DRAW!' : isLocalMP ? `${humanPlayer.name.toUpperCase()}'S TURN!` : 'YOUR TURN!')
+              : 'WAITING...'}
           </div>
           {isPlayerTurn && <button onClick={handleSortClick} className="bg-blue-500 hover:bg-blue-400 text-white font-bold px-4 py-2.5 rounded-full border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 transition-all text-sm md:text-base">Sort Cards</button>}
           {gameState.canUndo && isPlayerTurn && (

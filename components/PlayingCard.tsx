@@ -45,6 +45,15 @@ const getPowerMeta = (card: Card): { label: string; aria: string; badgeClass: st
       isBlackJack: true,
     };
   }
+  const isRJ = card.rank === Rank.Jack && (card.suit === Suit.Hearts || card.suit === Suit.Diamonds);
+  if (isRJ) {
+    return {
+      label: '🛡️ CANCEL',
+      aria: 'Red Jack cancels Black Jack attack',
+      badgeClass: 'bg-rose-700 text-white',
+      cardAccent: 'border-rose-400',
+    };
+  }
   if (card.rank === Rank.Two) {
     return {
       label: '💥 +2',

@@ -93,6 +93,8 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
     } else if (game.pendingPickup >= 4) {
       setImpact({ id: Date.now(), title: `💥 +${game.pendingPickup} STACK!!`, subtitle: 'Attack stacked!', tone: 'attack' });
       playAttackSound();
+    } else if (game.lastAction.includes('RED JACK')) {
+      setImpact({ id: Date.now(), title: '🛡️ RED JACK CANCEL!', subtitle: 'Black Jack attack neutralized!', tone: 'shield' });
     } else if (game.lastAction.includes('SWAP') || game.lastAction.includes('swapped')) {
       setImpact({ id: Date.now(), title: '🤴 HANDS SWAPPED!', tone: 'swap' });
     }
@@ -141,7 +143,7 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
     if (!valid) {
       if (mustPickup) {
         const isBlackJackTop = topCard.rank === Rank.Jack && (topCard.suit === Suit.Spades || topCard.suit === Suit.Clubs);
-        setLocalError(isBlackJackTop ? '🛡️ Defend with a Black Jack (J♠/J♣) or Pick Up!' : `🛡️ Defend with a ${topCard.rank} or Pick Up!`);
+        setLocalError(isBlackJackTop ? '🛡️ Stack a Black Jack (J♠/J♣), cancel with a Red Jack (J♥/J♦), or Pick Up!' : `🛡️ Defend with a ${topCard.rank} or Pick Up!`);
       } else {
         const activeSuit = game.chosenSuit ?? topCard.suit;
         setLocalError(
