@@ -178,6 +178,9 @@ export const recordGame = (
         newStats.currentLoseStreak++;
         newStats.currentWinStreak = 0;
 
+        // Good Game consolation bonus so every match rewards progress!
+        newStats.coins += 5;
+
         // Per-difficulty losses
         if (record.difficulty === 'easy') newStats.easyLosses++;
         else if (record.difficulty === 'medium') newStats.mediumLosses++;

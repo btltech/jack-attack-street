@@ -207,12 +207,16 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-900 flex flex-col items-center justify-center text-white font-sans p-4 text-center">
         <div className="bg-white/10 p-8 sm:p-10 rounded-[2.5rem] border-4 border-white/20 backdrop-blur-md shadow-2xl max-w-md w-full">
-          <div className="text-7xl sm:text-8xl mb-3 animate-bounce">{isMeWinner ? '🏆' : '😭'}</div>
+          <div className="text-7xl sm:text-8xl mb-3 animate-bounce">
+            {isMeWinner ? '🏆' : (view.seats[mySeat]?.handCount ?? 9) <= 2 ? '🤝' : '🙌'}
+          </div>
           <h1 className="font-display text-5xl sm:text-6xl font-black mb-2 text-yellow-400">
-            {isMeWinner ? 'YOU WON!' : 'GAME OVER'}
+            {isMeWinner ? 'YOU WON!' : (view.seats[mySeat]?.handCount ?? 9) <= 2 ? 'SO CLOSE!' : 'GOOD GAME!'}
           </h1>
           <p className="text-lg sm:text-xl font-bold mb-5 text-pink-100">
-            {isMeWinner ? "You're the King of the Street!" : `${winner?.avatar || '🃏'} ${winner?.name || 'Opponent'} won this round!`}
+            {isMeWinner
+              ? "You're the King of the Street!"
+              : `${winner?.avatar || '🃏'} ${winner?.name || 'Opponent'} took this one — run it back!`}
           </p>
 
           {/* Session Scoreboard */}

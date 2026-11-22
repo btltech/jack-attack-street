@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createNewGame, isValidMove, playCard, drawCard, getBotDecision, sortHand, chooseSuit, swapWith, clearPeek, botChooseSuit, botChooseSwap, confirmPassScreen, triggerPassScreen, saveStateForUndo, undoLastMove } from './core/game';
 import { GameState, Card, Player, Suit, Rank, Difficulty, GameMode } from './core/types';
-import { playCardSound, playDrawSound, playShuffleSound, playAttackSound, playWinSound, playLoseSound, playClickSound, initAudio, toggleBackgroundMusic, isMusicPlaying, playPowerUpSound, playCoinsSound } from './core/sounds';
+import { playCardSound, playDrawSound, playShuffleSound, playAttackSound, playWinSound, playLoseSound, playClickSound, initAudio, toggleBackgroundMusic, isMusicPlaying, playPowerUpSound, playCoinsSound, playEncourageSound } from './core/sounds';
 import { getCommentary, getCommentaryForAction, Commentary, CommentaryType } from './core/commentary';
 import { PlayerStats, loadStats, saveStats, recordGame, migrateOldStats, getWinRate, formatDuration, getRank } from './core/stats';
 import SuitPicker from './components/SuitPicker';
@@ -617,20 +617,29 @@ const App: React.FC = () => {
     if (view !== 'playing' || !gameState || flyingCard) return;
     if (gameState.players[gameState.currentPlayerIndex].isBot) return;
 
-    if (playerHandRef.current) {
-      const targetRect = playerHandRef.current.getBoundingClientRect();
-      targetRect.y -= 50;
-      triggerDrawAnimation(targetRect, () => {
-        playDrawSound();
-        const newState = drawCard(gameState);
-        setGameState(newState);
-        setErrorMsg(null);
-      });
-    } else {
+    const wasPenalty = gameState.pendingPickup > 0;
+    const finishDraw = () => {
       playDrawSound();
       const newState = drawCard(gameState);
       setGameState(newState);
       setErrorMsg(null);
+      if (wasPenalty) {
+        playEncourageSound();
+        setImpact({
+          id: Date.now(),
+          title: '💪 COMEBACK TIME!',
+          subtitle: 'One King or Black Jack flips the whole table!',
+          tone: 'shield',
+        });
+      }
+    };
+
+    if (playerHandRef.current) {
+      const targetRect = playerHandRef.current.getBoundingClientRect();
+      targetRect.y -= 50;
+      triggerDrawAnimation(targetRect, finishDraw);
+    } else {
+      finishDraw();
     }
   };
 
@@ -1234,9 +1243,19 @@ const App: React.FC = () => {
         {showConfetti && <ConfettiEffect />}
 
         <div className="bg-white/10 p-8 sm:p-10 rounded-[2.5rem] border-4 border-white/20 backdrop-blur-md shadow-2xl max-w-md w-full">
-          <div className="text-7xl sm:text-8xl mb-4 filter drop-shadow-lg animate-bounce">{isHumanWinner ? "🏆" : "😭"}</div>
-          <h1 className="text-5xl sm:text-6xl font-black mb-3 drop-shadow-lg text-yellow-400">{isHumanWinner ? "YOU WON!" : "GAME OVER"}</h1>
-          <p className="text-xl sm:text-2xl font-bold mb-5 text-pink-100">{isHumanWinner ? "You're the King of the Street!" : `${winner?.avatar} ${winner?.name} won this time!`}</p>
+          <div className="text-7xl sm:text-8xl mb-4 filter drop-shadow-lg animate-bounce">
+            {isHumanWinner ? '🏆' : humanPlayer.hand.length <= 2 ? '🤝' : '🙌'}
+          </div>
+          <h1 className="font-display text-5xl sm:text-6xl font-black mb-3 drop-shadow-lg text-yellow-400">
+            {isHumanWinner ? 'YOU WON!' : humanPlayer.hand.length <= 2 ? 'SO CLOSE!' : 'GOOD GAME!'}
+          </h1>
+          <p className="text-lg sm:text-xl font-bold mb-5 text-pink-100">
+            {isHumanWinner
+              ? "You're the King of the Street!"
+              : humanPlayer.hand.length <= 2
+                ? `${winner?.avatar} ${winner?.name} barely edged it — you were right there!`
+                : `Great battle against ${winner?.avatar} ${winner?.name}! Every round makes you sharper.`}
+          </p>
 
           {isHumanWinner && isDailySeedRun && dailyRankResult && (
             <div className="mb-5 bg-yellow-400/20 border-2 border-yellow-400 rounded-2xl px-4 py-2.5 text-yellow-200 font-black text-sm">
@@ -1254,9 +1273,11 @@ const App: React.FC = () => {
               <div className="text-purple-200 text-[11px] uppercase font-bold">Cards</div>
               <div className="font-display font-black text-base tabular-nums">{cardsPlayedRef.current}</div>
             </div>
-            {isHumanWinner && lastCoinsEarned > 0 && (
+            {lastCoinsEarned > 0 && (
               <div className="bg-yellow-400/20 px-3.5 py-2 rounded-xl border border-yellow-400/50">
-                <div className="text-yellow-200 text-[11px] uppercase font-bold">Earned</div>
+                <div className="text-yellow-200 text-[11px] uppercase font-bold">
+                  {isHumanWinner ? 'Earned' : 'GG Bonus'}
+                </div>
                 <div className="font-display font-black text-base text-yellow-300 tabular-nums">+{lastCoinsEarned} 🪙</div>
               </div>
             )}
@@ -1304,7 +1325,9 @@ const App: React.FC = () => {
             <button onClick={handleShareResult} className="bg-purple-500 hover:bg-purple-400 text-white font-bold py-3 px-6 rounded-full border-b-4 border-purple-700 transition-transform active:border-b-0 active:translate-y-1">
               {shareCopied ? '✓ Copied!' : '📤 Share'}
             </button>
-            <button onClick={() => startNewGame(gameState.players.length, gameState.difficulty, gameState.gameMode)} className="bg-yellow-400 hover:bg-yellow-300 text-black font-black py-3 px-7 rounded-full border-b-4 border-yellow-600 shadow-xl transition-transform hover:scale-105 active:border-b-0 active:translate-y-1">Play Again ↺</button>
+            <button onClick={() => startNewGame(gameState.players.length, gameState.difficulty, gameState.gameMode)} className="bg-yellow-400 hover:bg-yellow-300 text-black font-display font-black py-3 px-7 rounded-full border-b-4 border-yellow-600 shadow-xl transition-transform hover:scale-105 active:border-b-0 active:translate-y-1">
+              {isHumanWinner ? 'Play Again ↺' : '⚡ Rematch!'}
+            </button>
           </div>
         </div>
       </div>
@@ -1680,7 +1703,7 @@ const App: React.FC = () => {
   );
 };
 
-// --- FLYING CARD (Animation) ---
+// --- FLYING CARD (Smooth Snappy Flick Animation) ---
 const FlyingCardComponent: React.FC<FlyingCardState> = ({ card, start, end, faceDown, onComplete }) => {
   const [style, setStyle] = useState<React.CSSProperties>({
     position: 'fixed',
@@ -1689,9 +1712,9 @@ const FlyingCardComponent: React.FC<FlyingCardState> = ({ card, start, end, face
     width: start.width,
     height: start.height,
     zIndex: 9999,
-    transition: 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)', // Bouncy bezier
-    transform: 'scale(1) rotate(0deg)',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+    transition: 'all 0.36s cubic-bezier(0.22, 1, 0.36, 1)',
+    transform: 'scale(1.06) rotate(-6deg)',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.55)',
   });
 
   useEffect(() => {
@@ -1702,7 +1725,7 @@ const FlyingCardComponent: React.FC<FlyingCardState> = ({ card, start, end, face
         left: end.left,
         width: end.width,
         height: end.height,
-        transform: 'scale(1) rotate(360deg)',
+        transform: 'scale(1) rotate(5deg)',
       }));
     });
   }, []);
