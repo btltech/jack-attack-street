@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#312e81"/>
+      <stop offset="50%" stop-color="#6b21a8"/>
+      <stop offset="100%" stop-color="#831843"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="78%" cy="46%" r="36%">
+      <stop offset="0%" stop-color="#facc15" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#facc15" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="36" height="36" patternUnits="userSpaceOnUse">
+      <circle cx="18" cy="18" r="2" fill="#ffffff" fill-opacity="0.1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+  <rect width="1200" height="630" fill="url(#glow1)"/>
+
+  <!-- Badge -->
+  <rect x="72" y="62" width="490" height="44" rx="22" fill="#facc15"/>
+  <text x="317" y="92" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="20" font-weight="700" fill="#111827">FREE ONLINE CARD GAME • NO DOWNLOAD</text>
+
+  <!-- Title -->
+  <text x="72" y="216" font-family="DejaVu Sans, Arial, sans-serif" font-size="82" font-weight="800" fill="#fde047">JACK ATTACK</text>
+  <text x="72" y="274" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" font-weight="700" fill="#fbcfe8" letter-spacing="3">STREET EDITION</text>
+
+  <!-- Description -->
+  <text x="72" y="344" font-family="DejaVu Sans, Arial, sans-serif" font-size="27" fill="#f3f4f6">Stack +2s &amp; Black Jack +5s, swap hands,</text>
+  <text x="72" y="386" font-family="DejaVu Sans, Arial, sans-serif" font-size="27" fill="#f3f4f6">beat daily challenges &amp; rule the streets.</text>
+
+  <!-- CTA -->
+  <rect x="72" y="446" width="265" height="66" rx="18" fill="#15803d"/>
+  <rect x="72" y="440" width="265" height="66" rx="18" fill="#22c55e"/>
+  <text x="184" y="483" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="28" font-weight="800" fill="#ffffff">PLAY NOW</text>
+  <polygon points="282,463 282,483 300,473" fill="#ffffff"/>
+
+  <text x="72" y="568" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="700" fill="#c4b5fd">www.jackattackstreets.com/jackattack</text>
+
+  <!-- Three Fanned Cards -->
+  <g transform="translate(835, 336) rotate(-14)">
+    <rect x="-74" y="-108" width="166" height="234" rx="20" fill="#000000" fill-opacity="0.35"/>
+    <rect x="-83" y="-117" width="166" height="234" rx="20" fill="#ffffff" stroke="#e2e8f0" stroke-width="3"/>
+    <text x="-63" y="-66" font-family="DejaVu Sans, Arial, sans-serif" font-size="42" font-weight="800" fill="#dc2626">2</text>
+    <text x="-63" y="-28" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="#dc2626">♥</text>
+    <text x="0" y="38" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="94" fill="#dc2626">♥</text>
+  </g>
+  <g transform="translate(952, 294) rotate(2)">
+    <rect x="-78" y="-114" width="176" height="248" rx="20" fill="#000000" fill-opacity="0.38"/>
+    <rect x="-88" y="-124" width="176" height="248" rx="20" fill="#ffffff" stroke="#e2e8f0" stroke-width="3"/>
+    <text x="-66" y="-70" font-family="DejaVu Sans, Arial, sans-serif" font-size="46" font-weight="800" fill="#111827">J</text>
+    <text x="-66" y="-30" font-family="DejaVu Sans, Arial, sans-serif" font-size="36" fill="#111827">♠</text>
+    <text x="0" y="42" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="102" fill="#111827">♠</text>
+  </g>
+  <g transform="translate(1062, 346) rotate(16)">
+    <rect x="-74" y="-108" width="166" height="234" rx="20" fill="#000000" fill-opacity="0.35"/>
+    <rect x="-83" y="-117" width="166" height="234" rx="20" fill="#ffffff" stroke="#e2e8f0" stroke-width="3"/>
+    <text x="-63" y="-66" font-family="DejaVu Sans, Arial, sans-serif" font-size="42" font-weight="800" fill="#dc2626">Q</text>
+    <text x="-63" y="-28" font-family="DejaVu Sans, Arial, sans-serif" font-size="34" fill="#dc2626">♦</text>
+    <text x="0" y="38" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="94" fill="#dc2626">♦</text>
+  </g>
+</svg>

@@ -3,15 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Classic Street Games - Play Fun Games Online</title>
+    <meta name="theme-color" content="#1a1a2e" />
+    <title>Jack Attack Street &amp; Classic Street Games — Play Free Online</title>
+    <meta name="description" content="Play Jack Attack Street (fast-paced card game with Black Jack +5s, stackable 2s &amp; daily challenges) and Ayò Ọlọ́pọ́n (traditional Yorùbá Mancala) free in your browser — no download required." />
+    <link rel="canonical" href="https://www.jackattackstreets.com/" />
+
+    <!-- Open Graph / Social Previews -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Classic Street Games" />
+    <meta property="og:title" content="Jack Attack Street &amp; Classic Street Games — Play Free Online" />
+    <meta property="og:description" content="Play Jack Attack Street card game &amp; Ayò Ọlọ́pọ́n Yorùbá Mancala free in your browser. No download, instant play!" />
+    <meta property="og:url" content="https://www.jackattackstreets.com/" />
+    <meta property="og:image" content="https://www.jackattackstreets.com/og-home.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Classic Street Games featuring Jack Attack Street and Ayò Ọlọ́pọ́n" />
+
+    <!-- Twitter / X Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Jack Attack Street &amp; Classic Street Games — Play Free Online" />
+    <meta name="twitter:description" content="Play Jack Attack Street card game &amp; Ayò Ọlọ́pọ́n Yorùbá Mancala free in your browser. Instant play!" />
+    <meta name="twitter:image" content="https://www.jackattackstreets.com/og-home.png" />
+
     <link rel="icon" type="image/png" href="/ayo/favicon-32.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Classic Street Games — Jack Attack Street & Ayò Ọlọ́pọ́n",
+        "url": "https://www.jackattackstreets.com/",
+        "description": "Free browser-based street card and board games including Jack Attack Street and Ayò Ọlọ́pọ́n Yorùbá Mancala."
+      }
+    </script>
     <style>
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
       }
-      
+
       body {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -21,149 +51,213 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 20px;
+        padding: 28px 20px;
       }
-      
+
+      .hero-badge {
+        display: inline-block;
+        background: rgba(245, 158, 11, 0.16);
+        border: 1px solid rgba(251, 191, 36, 0.45);
+        color: #fcd34d;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        margin-bottom: 0.9rem;
+      }
+
       h1 {
-        font-size: 3rem;
+        font-size: 2.85rem;
         margin-bottom: 0.5rem;
+        text-align: center;
         background: linear-gradient(90deg, #f59e0b, #ef4444, #8b5cf6);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
       }
-      
+
       .subtitle {
-        color: #9ca3af;
-        margin-bottom: 3rem;
-        font-size: 1.2rem;
+        color: #cbd5e1;
+        margin-bottom: 2.25rem;
+        font-size: 1.1rem;
+        text-align: center;
+        max-width: 580px;
       }
-      
+
       .games-container {
         display: flex;
-        gap: 2rem;
+        gap: 1.75rem;
         flex-wrap: wrap;
         justify-content: center;
+        align-items: stretch;
         max-width: 900px;
+        width: 100%;
       }
-      
+
       .game-card {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.09);
+        backdrop-filter: blur(8px);
         border-radius: 20px;
         padding: 2rem;
-        width: 300px;
+        width: 320px;
         text-align: center;
         text-decoration: none;
         color: white;
-        transition: transform 0.3s, box-shadow 0.3s;
+        transition: transform 0.25s, box-shadow 0.25s, background 0.25s;
         border: 2px solid transparent;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
       }
-      
+
       .game-card:hover {
-        transform: translateY(-10px);
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
       }
-      
-      .game-card.ayo {
-        border-color: #008751;
+
+      .featured-tag {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        background: linear-gradient(90deg, #f59e0b, #ef4444);
+        color: white;
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
       }
-      
-      .game-card.ayo:hover {
-        background: rgba(0, 135, 81, 0.2);
-      }
-      
+
       .game-card.jackattack {
         border-color: #8b5cf6;
       }
-      
+
       .game-card.jackattack:hover {
-        background: rgba(139, 92, 246, 0.2);
+        background: rgba(139, 92, 246, 0.22);
       }
-      
+
+      .game-card.ayo {
+        border-color: #008751;
+      }
+
+      .game-card.ayo:hover {
+        background: rgba(0, 135, 81, 0.22);
+      }
+
       .game-icon {
-        font-size: 4rem;
-        margin-bottom: 1rem;
+        font-size: 3.75rem;
+        margin-bottom: 0.9rem;
       }
-      
+
       .game-title {
         font-size: 1.5rem;
         font-weight: bold;
         margin-bottom: 0.5rem;
       }
-      
+
       .game-description {
-        color: #9ca3af;
-        font-size: 0.9rem;
-        line-height: 1.5;
+        color: #cbd5e1;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        margin-bottom: 1.5rem;
       }
-      
+
       .play-btn {
         display: inline-block;
-        margin-top: 1.5rem;
-        padding: 0.75rem 2rem;
+        margin-top: auto;
+        padding: 0.8rem 2.1rem;
         border-radius: 50px;
         font-weight: bold;
         text-transform: uppercase;
         letter-spacing: 1px;
         font-size: 0.9rem;
+        color: white;
       }
-      
-      .ayo .play-btn {
-        background: linear-gradient(90deg, #008751, #00a86b);
-      }
-      
+
       .jackattack .play-btn {
         background: linear-gradient(90deg, #8b5cf6, #6d28d9);
       }
-      
-      footer {
-        margin-top: 3rem;
-        color: #6b7280;
-        font-size: 0.8rem;
+
+      .ayo .play-btn {
+        background: linear-gradient(90deg, #008751, #00a86b);
       }
-      
+
+      .about-section {
+        margin-top: 3rem;
+        max-width: 680px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 0.9rem;
+        line-height: 1.65;
+      }
+
+      .about-section h2 {
+        color: #e2e8f0;
+        font-size: 1.05rem;
+        margin-bottom: 0.5rem;
+      }
+
+      footer {
+        margin-top: 2.25rem;
+        color: #64748b;
+        font-size: 0.82rem;
+        text-align: center;
+      }
+
       @media (max-width: 640px) {
         h1 {
           font-size: 2rem;
         }
         .games-container {
           flex-direction: column;
+          align-items: center;
         }
         .game-card {
           width: 100%;
-          max-width: 300px;
+          max-width: 340px;
         }
       }
     </style>
   </head>
   <body>
+    <span class="hero-badge">Free Browser Games • No Download</span>
     <h1>🎮 Classic Street Games</h1>
-    <p class="subtitle">Choose a game to play</p>
-    
+    <p class="subtitle">Play Jack Attack Street &amp; Ayò Ọlọ́pọ́n instantly in your browser</p>
+
     <div class="games-container">
+      <a href="/jackattack/" class="game-card jackattack">
+        <span class="featured-tag">Featured</span>
+        <div class="game-icon">🃏</div>
+        <div class="game-title">Jack Attack Street</div>
+        <p class="game-description">
+          Fast-paced street card game with Black Jack +5s, stackable 2s, wild Queens, hand swaps, daily challenges &amp; unlockable themes!
+        </p>
+        <span class="play-btn">Play Now ▶</span>
+      </a>
+
       <a href="/ayo/" class="game-card ayo">
         <div class="game-icon">🐚</div>
         <div class="game-title">Ayò Ọlọ́pọ́n</div>
         <p class="game-description">
-          Traditional Yorùbá Mancala strategy game. 
-          Outsmart the AI in this ancient African board game!
+          Traditional Yorùbá Mancala strategy game. Outsmart smart AI opponents or pass &amp; play in this classic African board game!
         </p>
-        <span class="play-btn">Play Now</span>
-      </a>
-      
-      <a href="/jackattack/" class="game-card jackattack">
-        <div class="game-icon">🃏</div>
-        <div class="game-title">Jack Attack Street</div>
-        <p class="game-description">
-          Fun card game with power-ups, daily challenges, 
-          themes and more!
-        </p>
-        <span class="play-btn">Play Now</span>
+        <span class="play-btn">Play Now ▶</span>
       </a>
     </div>
-    
+
+    <section class="about-section" aria-label="About Classic Street Games">
+      <h2>Classic Card &amp; Board Games — Free to Play Online</h2>
+      <p>
+        Challenge AI bots or play pass-and-play with friends. <strong>Jack Attack Street</strong> brings classic Switch, Crazy Eights, and Black Jack street rules online with power-ups and daily challenges, while <strong>Ayò Ọlọ́pọ́n</strong> delivers authentic Yorùbá Mancala strategy with 3D board view.
+      </p>
+    </section>
+
     <footer>
-      © 2025 Classic Street Games - Made with ❤️
+      © 2026 Classic Street Games — Made with ❤️
     </footer>
   </body>
 </html>

@@ -36,6 +36,13 @@ jobs:
       - name: Copy Ayò game to dist
         run: cp -r ayo dist/
 
+      - name: Generate Open Graph PNG images
+        run: |
+          sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-dejavu-core
+          rsvg-convert -w 1200 -h 630 scripts/og/og-home.svg -o dist/og-home.png
+          rsvg-convert -w 1200 -h 630 scripts/og/og-jackattack.svg -o dist/og-jackattack.png
+          rsvg-convert -w 1200 -h 630 scripts/og/og-ayo.svg -o dist/og-ayo.png
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="50%" stop-color="#00663d"/>
+      <stop offset="100%" stop-color="#14532d"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="78%" cy="50%" r="34%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="36" height="36" patternUnits="userSpaceOnUse">
+      <circle cx="18" cy="18" r="2" fill="#ffffff" fill-opacity="0.1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+  <rect width="1200" height="630" fill="url(#glow1)"/>
+
+  <!-- Badge -->
+  <rect x="72" y="62" width="465" height="44" rx="22" fill="#facc15"/>
+  <text x="304" y="92" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="20" font-weight="700" fill="#111827">TRADITIONAL YORÙBÁ STRATEGY GAME</text>
+
+  <!-- Title -->
+  <text x="72" y="218" font-family="DejaVu Sans, Arial, sans-serif" font-size="76" font-weight="800" fill="#ffffff">AYÒ ỌLỌ́PỌ́N</text>
+  <text x="72" y="280" font-family="DejaVu Sans, Arial, sans-serif" font-size="32" font-weight="700" fill="#a7f3d0">Ancient African Mancala — Free Online</text>
+
+  <!-- Description -->
+  <text x="72" y="346" font-family="DejaVu Sans, Arial, sans-serif" font-size="26" fill="#ecfdf5">Challenge smart AI masters, play 3D view,</text>
+  <text x="72" y="388" font-family="DejaVu Sans, Arial, sans-serif" font-size="26" fill="#ecfdf5">or pass &amp; play with friends in your browser.</text>
+
+  <!-- CTA -->
+  <rect x="72" y="446" width="310" height="66" rx="18" fill="#b45309"/>
+  <rect x="72" y="440" width="310" height="66" rx="18" fill="#f59e0b"/>
+  <text x="206" y="483" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="27" font-weight="800" fill="#111827">PLAY AYÒ NOW</text>
+  <polygon points="334,463 334,483 352,473" fill="#111827"/>
+
+  <text x="72" y="568" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="700" fill="#a7f3d0">www.jackattackstreets.com/ayo</text>
+
+  <!-- Large Wooden Ayò Board -->
+  <rect x="740" y="215" width="400" height="200" rx="34" fill="#78350f" stroke="#fbbf24" stroke-width="5"/>
+  <g fill="#451a03" stroke="#d97706" stroke-width="2.5">
+    <circle cx="783" cy="274" r="24"/><circle cx="846" cy="274" r="24"/><circle cx="909" cy="274" r="24"/>
+    <circle cx="972" cy="274" r="24"/><circle cx="1035" cy="274" r="24"/><circle cx="1098" cy="274" r="24"/>
+    <circle cx="783" cy="356" r="24"/><circle cx="846" cy="356" r="24"/><circle cx="909" cy="356" r="24"/>
+    <circle cx="972" cy="356" r="24"/><circle cx="1035" cy="356" r="24"/><circle cx="1098" cy="356" r="24"/>
+  </g>
+  <g fill="#e4e4e7">
+    <circle cx="776" cy="268" r="4"/><circle cx="789" cy="268" r="4"/><circle cx="778" cy="280" r="4"/><circle cx="790" cy="280" r="4"/>
+    <circle cx="839" cy="268" r="4"/><circle cx="852" cy="268" r="4"/><circle cx="841" cy="280" r="4"/><circle cx="853" cy="280" r="4"/>
+    <circle cx="902" cy="268" r="4"/><circle cx="915" cy="268" r="4"/><circle cx="904" cy="280" r="4"/><circle cx="916" cy="280" r="4"/>
+    <circle cx="965" cy="268" r="4"/><circle cx="978" cy="268" r="4"/><circle cx="967" cy="280" r="4"/><circle cx="979" cy="280" r="4"/>
+    <circle cx="1028" cy="268" r="4"/><circle cx="1041" cy="268" r="4"/><circle cx="1030" cy="280" r="4"/><circle cx="1042" cy="280" r="4"/>
+    <circle cx="1091" cy="268" r="4"/><circle cx="1104" cy="268" r="4"/><circle cx="1093" cy="280" r="4"/><circle cx="1105" cy="280" r="4"/>
+    <circle cx="776" cy="350" r="4"/><circle cx="789" cy="350" r="4"/><circle cx="778" cy="362" r="4"/><circle cx="790" cy="362" r="4"/>
+    <circle cx="839" cy="350" r="4"/><circle cx="852" cy="350" r="4"/><circle cx="841" cy="362" r="4"/><circle cx="853" cy="362" r="4"/>
+    <circle cx="902" cy="350" r="4"/><circle cx="915" cy="350" r="4"/><circle cx="904" cy="362" r="4"/><circle cx="916" cy="362" r="4"/>
+    <circle cx="965" cy="350" r="4"/><circle cx="978" cy="350" r="4"/><circle cx="967" cy="362" r="4"/><circle cx="979" cy="362" r="4"/>
+    <circle cx="1028" cy="350" r="4"/><circle cx="1041" cy="350" r="4"/><circle cx="1030" cy="362" r="4"/><circle cx="1042" cy="362" r="4"/>
+    <circle cx="1091" cy="350" r="4"/><circle cx="1104" cy="350" r="4"/><circle cx="1093" cy="362" r="4"/><circle cx="1105" cy="362" r="4"/>
+  </g>
+</svg>
