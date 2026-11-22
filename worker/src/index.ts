@@ -4,9 +4,13 @@ import {
   RoomData, ClientMsg, ServerMsg,
   newRoom, join, disconnect, start, act, tick, view, cleanName,
 } from '../../core/roomEngine';
+import {
+  AyoState, AyoRuleSet, createAyoGame, applyAyoMove, getLegalMoves,
+} from '../../ayo-app/engine';
 
 export interface Env {
   ROOMS: DurableObjectNamespace<GameRoom>;
+  AYO_ROOMS: DurableObjectNamespace<AyoRoom>;
   DB: D1Database;
 }
 
@@ -169,6 +173,26 @@ export default {
         bestDurationMs: bestDuration,
         ...board,
       }, 200, origin);
+    }
+
+    // Create a new Ayò 1v1 room code
+    if (url.pathname === '/api/ayo/rooms' && request.method === 'POST') {
+      const code = generateRoomCode();
+      return jsonResponse({ code }, 200, origin);
+    }
+
+    // WebSocket connection to an Ayò 1v1 room: /api/ayo/rooms/:code/ws
+    const ayoWsMatch = url.pathname.match(/^\/api\/ayo\/rooms\/([A-Za-z0-9]{4,6})\/ws$/);
+    if (ayoWsMatch) {
+      const code = ayoWsMatch[1].toUpperCase();
+      if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+        return jsonResponse({ error: 'Expected WebSocket upgrade' }, 426, origin);
+      }
+      const id = env.AYO_ROOMS.idFromName(code);
+      const stub = env.AYO_ROOMS.get(id);
+      const forwardUrl = new URL(request.url);
+      forwardUrl.searchParams.set('code', code);
+      return stub.fetch(new Request(forwardUrl.toString(), request));
     }
 
     // WebSocket connection to a room: /api/rooms/:code/ws
@@ -383,6 +407,173 @@ export class GameRoom extends DurableObject<Env> {
       this.broadcastState();
     } else if (room.phase === 'playing' && room.deadline > now) {
       await this.ctx.storage.setAlarm(room.deadline);
+    }
+  }
+}
+
+// --- AYÒ ỌLỌ́PỌ́N 1v1 DURABLE OBJECT ---
+interface AyoRoomData {
+  code: string;
+  phase: 'lobby' | 'playing' | 'over';
+  seats: Array<{ id: string; name: string; connected: boolean }>;
+  wins: Record<string, number>;
+  game: AyoState | null;
+}
+
+export class AyoRoom extends DurableObject<Env> {
+  private room: AyoRoomData | null = null;
+
+  private async loadRoom(code?: string): Promise<AyoRoomData> {
+    if (this.room) return this.room;
+    const stored = await this.ctx.storage.get<AyoRoomData>('ayo_room');
+    if (stored) {
+      this.room = stored;
+      return stored;
+    }
+    const created: AyoRoomData = { code: code || 'AYO', phase: 'lobby', seats: [], wins: {}, game: null };
+    this.room = created;
+    await this.ctx.storage.put('ayo_room', created);
+    return created;
+  }
+
+  private send(ws: WebSocket, msg: unknown): void {
+    try { ws.send(JSON.stringify(msg)); } catch {}
+  }
+
+  private broadcast(): void {
+    if (!this.room) return;
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as SocketAttachment | null;
+      if (!att?.id) continue;
+      const you = this.room.seats.findIndex(s => s.id === att.id);
+      this.send(ws, {
+        t: 'state',
+        view: {
+          code: this.room.code,
+          phase: this.room.phase,
+          you,
+          seats: this.room.seats.map(s => ({
+            name: s.name,
+            connected: s.connected,
+            wins: this.room!.wins[s.id] ?? 0,
+          })),
+          game: this.room.game,
+        },
+      });
+    }
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const code = (url.searchParams.get('code') || 'AYO').toUpperCase();
+    await this.loadRoom(code);
+
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    this.ctx.acceptWebSocket(server);
+    server.serializeAttachment({ id: null } satisfies SocketAttachment);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
+    const room = await this.loadRoom();
+    let msg: { t: string; id?: string; name?: string; pit?: number; ruleSet?: AyoRuleSet; emoji?: string };
+    try {
+      const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+      msg = JSON.parse(text);
+    } catch {
+      return;
+    }
+    if (msg.t === 'ping') { this.send(ws, { t: 'pong' }); return; }
+
+    const att = (ws.deserializeAttachment() as SocketAttachment | null) || { id: null };
+
+    if (msg.t === 'join') {
+      const guestId = String(msg.id || '').trim().slice(0, 64);
+      if (!guestId) return;
+      for (const other of this.ctx.getWebSockets()) {
+        if (other === ws) continue;
+        const oAtt = other.deserializeAttachment() as SocketAttachment | null;
+        if (oAtt?.id === guestId) {
+          other.serializeAttachment({ id: null } satisfies SocketAttachment);
+          try { other.close(1000, 'Replaced'); } catch {}
+        }
+      }
+      const existing = room.seats.findIndex(s => s.id === guestId);
+      if (existing >= 0) {
+        room.seats[existing].connected = true;
+        if (room.phase !== 'playing') room.seats[existing].name = cleanName(msg.name);
+      } else {
+        if (room.seats.length >= 2) {
+          this.send(ws, { t: 'error', error: 'Room is full (2 players max)' });
+          return;
+        }
+        room.seats.push({ id: guestId, name: cleanName(msg.name), connected: true });
+      }
+      ws.serializeAttachment({ id: guestId } satisfies SocketAttachment);
+      await this.ctx.storage.put('ayo_room', room);
+      this.broadcast();
+      return;
+    }
+
+    if (!att.id) return;
+    const seatIdx = room.seats.findIndex(s => s.id === att.id);
+    if (seatIdx < 0) return;
+
+    if (msg.t === 'react') {
+      const allowed = ['👏', '🔥', '😱', '😂', '👑', 'E kú iṣẹ́!'];
+      if (msg.emoji && allowed.includes(msg.emoji)) {
+        for (const s of this.ctx.getWebSockets()) this.send(s, { t: 'react', seat: seatIdx, emoji: msg.emoji });
+      }
+      return;
+    }
+
+    if (msg.t === 'start') {
+      if (seatIdx !== 0) { this.send(ws, { t: 'error', error: 'Only the host can start' }); return; }
+      if (room.seats.length < 2) { this.send(ws, { t: 'error', error: 'Wait for a friend to join!' }); return; }
+      const ruleSet: AyoRuleSet = msg.ruleSet === 'four_seed' ? 'four_seed' : 'oware';
+      room.game = createAyoGame(ruleSet);
+      room.game.lastAction = `${room.seats[0].name}'s turn to sow!`;
+      room.phase = 'playing';
+      await this.ctx.storage.put('ayo_room', room);
+      this.broadcast();
+      return;
+    }
+
+    if (msg.t === 'move' && room.phase === 'playing' && room.game) {
+      if (room.game.turn !== seatIdx) { this.send(ws, { t: 'error', error: 'Not your turn' }); return; }
+      const pit = Math.floor(Number(msg.pit));
+      if (!getLegalMoves(room.game).includes(pit)) {
+        this.send(ws, { t: 'error', error: 'Illegal pit' });
+        return;
+      }
+      const names: [string, string] = [room.seats[0]?.name || 'South', room.seats[1]?.name || 'North'];
+      const { nextState } = applyAyoMove(room.game, pit, names);
+      room.game = nextState;
+      if (nextState.winner !== null) {
+        room.phase = 'over';
+        if (nextState.winner === 0 || nextState.winner === 1) {
+          const winSeat = room.seats[nextState.winner];
+          if (winSeat) room.wins[winSeat.id] = (room.wins[winSeat.id] || 0) + 1;
+        }
+      }
+      await this.ctx.storage.put('ayo_room', room);
+      this.broadcast();
+    }
+  }
+
+  async webSocketClose(ws: WebSocket): Promise<void> {
+    const att = ws.deserializeAttachment() as SocketAttachment | null;
+    if (!att?.id) return;
+    const room = await this.loadRoom();
+    const still = this.ctx.getWebSockets().some(o => o !== ws && (o.deserializeAttachment() as SocketAttachment | null)?.id === att.id);
+    if (still) return;
+    const idx = room.seats.findIndex(s => s.id === att.id);
+    if (idx >= 0) {
+      if (room.phase === 'lobby') room.seats.splice(idx, 1);
+      else room.seats[idx].connected = false;
+      await this.ctx.storage.put('ayo_room', room);
+      this.broadcast();
     }
   }
 }

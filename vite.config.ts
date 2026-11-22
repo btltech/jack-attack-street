@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
         input: {
           main: path.resolve(__dirname, 'index.html'),
           jackattack: path.resolve(__dirname, 'jackattack/index.html'),
+          ayo: path.resolve(__dirname, 'ayo/index.html'),
           rules: path.resolve(__dirname, 'rules/index.html'),
           ayoRules: path.resolve(__dirname, 'ayo-rules/index.html'),
         },

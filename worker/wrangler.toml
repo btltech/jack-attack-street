@@ -4,12 +4,17 @@ compatibility_date = "2025-04-01"
 
 [durable_objects]
 bindings = [
-  { name = "ROOMS", class_name = "GameRoom" }
+  { name = "ROOMS", class_name = "GameRoom" },
+  { name = "AYO_ROOMS", class_name = "AyoRoom" }
 ]
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["AyoRoom"]
 
 [[d1_databases]]
 binding = "DB"

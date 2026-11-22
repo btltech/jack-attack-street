@@ -30,11 +30,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Jack Attack
+      - name: Build Jack Attack & Ayò Ọlọ́pọ́n
         run: npm run build
-
-      - name: Copy Ayò game to dist
-        run: cp -r ayo dist/
 
       - name: Generate Open Graph PNG images
         run: |
