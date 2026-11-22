@@ -43,7 +43,8 @@ const AyoApp: React.FC = () => {
   const [screen, setScreen] = useState<'lobby' | 'game' | 'online'>('lobby');
   const [modeTab, setModeTab] = useState<'ai' | 'online' | 'local' | 'challenge'>('ai');
   const [selectedOppIdx, setSelectedOppIdx] = useState<number>(0);
-  const [ruleSet, setRuleSet] = useState<AyoRuleSet>('oware');
+  const [ruleSet, setRuleSet] = useState<AyoRuleSet>('yoruba_ayo');
+  const [sowPace, setSowPace] = useState<'slow' | 'steady' | 'brisk'>('steady');
   const [is3D, setIs3D] = useState<boolean>(true);
   const [muted, setMuted] = useState<boolean>(() => isAyoMuted());
   const [profile, setProfile] = useState<AyoProfile>(() => loadProfile());
@@ -55,6 +56,8 @@ const AyoApp: React.FC = () => {
   const [displayPits, setDisplayPits] = useState<number[]>(Array(12).fill(4));
   const [displayScores, setDisplayScores] = useState<[number, number]>([0, 0]);
   const [animatingPit, setAnimatingPit] = useState<number | null>(null);
+  const [animStepKind, setAnimStepKind] = useState<'drop' | 'scoop' | 'capture' | null>(null);
+  const [seedsInHand, setSeedsInHand] = useState<number>(0);
   const [capturedPits, setCapturedPits] = useState<number[]>([]);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
   const [captureFlash, setCaptureFlash] = useState<string | null>(null);
@@ -155,23 +158,38 @@ const AyoApp: React.FC = () => {
     setIsAnimating(true);
     clearAnimTimers();
 
-    const stepDelay = steps.length > 10 ? 115 : 165;
+    // Slow, steady, rhythmic pacing so every seed drop, relay scoop, and capture is easy to follow
+    const baseDelay = sowPace === 'slow' ? 460 : sowPace === 'brisk' ? 210 : 340;
+    let elapsed = 0;
+
     steps.forEach((step, i) => {
       const tid = window.setTimeout(() => {
         setDisplayPits(step.pits);
         setDisplayScores(step.scores);
         setAnimatingPit(step.activePit);
-        if (step.capturedPits && step.capturedPits.length > 0) {
+        setAnimStepKind(step.kind);
+        setSeedsInHand(step.seedsInHand);
+
+        if (step.kind === 'capture' && step.capturedPits && step.capturedPits.length > 0) {
           setCapturedPits(step.capturedPits);
-          playCaptureSound(step.capturedCount || 2);
-          setCaptureFlash(`🔥 +${step.capturedCount} CAPTURED!`);
+          playCaptureSound(step.capturedCount || 4);
+          const capLabel = step.capturedBy !== undefined
+            ? `${names[step.capturedBy]} +${step.capturedCount}!`
+            : `+${step.capturedCount} CAPTURED!`;
+          setCaptureFlash(`🔥 ${capLabel}`);
           window.setTimeout(() => setCaptureFlash(null), 1100);
+        } else if (step.kind === 'scoop') {
+          setCapturedPits([]);
+          playAyoClick();
         } else {
           setCapturedPits([]);
           playSeedClack(i);
         }
-      }, i * stepDelay);
+      }, elapsed);
       animTimersRef.current.push(tid);
+
+      // Extra breathing room on scoops and captures so relays feel calm and readable
+      elapsed += step.kind === 'capture' ? baseDelay + 260 : step.kind === 'scoop' ? baseDelay + 180 : baseDelay;
     });
 
     const endTid = window.setTimeout(() => {
@@ -179,6 +197,8 @@ const AyoApp: React.FC = () => {
       setDisplayPits([...nextState.pits]);
       setDisplayScores([nextState.scores[0], nextState.scores[1]]);
       setAnimatingPit(null);
+      setAnimStepKind(null);
+      setSeedsInHand(0);
       setCapturedPits([]);
       setIsAnimating(false);
 
@@ -191,7 +211,7 @@ const AyoApp: React.FC = () => {
         setCaptureFlash(`🔥 MASTER CAPTURE +${captured}!`);
         window.setTimeout(() => setCaptureFlash(null), 1200);
       }
-    }, steps.length * stepDelay + 120);
+    }, elapsed + 160);
     animTimersRef.current.push(endTid);
   };
 
@@ -421,32 +441,32 @@ const AyoApp: React.FC = () => {
 
         {/* Mini Visual Board Diagram */}
         <div className="bg-[#4b2009] border-2 border-amber-400 rounded-2xl p-3.5 mb-4 text-center">
-          <div className="text-[11px] font-bold text-amber-200 mb-1.5">⬅️ Counter-Clockwise Sowing Direction</div>
+          <div className="text-[11px] font-bold text-amber-200 mb-1.5">⬅️ Counter-Clockwise Relay Sowing (Nigerian Yorùbá Ayò)</div>
           <div className="grid grid-cols-6 gap-1.5 mb-2">
-            {[4, 4, 2, 3, 4, 4].map((n, i) => (
-              <div key={i} className={`py-2 rounded-full font-display font-black text-sm border ${i === 2 || i === 3 ? 'bg-emerald-700 border-emerald-300 text-white' : 'bg-[#2a1003] border-amber-700 text-amber-200'}`}>
-                {n}{i === 2 || i === 3 ? '✓' : ''}
+            {[4, 4, 4, 3, 4, 4].map((n, i) => (
+              <div key={i} className={`py-2 rounded-full font-display font-black text-sm border ${i === 3 ? 'bg-emerald-700 border-emerald-300 text-white' : 'bg-[#2a1003] border-amber-700 text-amber-200'}`}>
+                {i === 3 ? '3+1=4!' : n}
               </div>
             ))}
           </div>
           <div className="grid grid-cols-6 gap-1.5">
             {[4, 4, 4, 4, 0, 4].map((n, i) => (
               <div key={i} className={`py-2 rounded-full font-display font-black text-sm border ${i === 4 ? 'bg-amber-400 text-slate-950 border-white' : 'bg-[#2a1003] border-amber-700 text-amber-200'}`}>
-                {i === 4 ? '▶' : n}
+                {i === 4 ? '✋' : n}
               </div>
             ))}
           </div>
           <div className="text-[11px] font-bold text-emerald-200 mt-1.5">
-            Green pits (2 or 3 seeds on opponent&apos;s row) get CAPTURED in a chain! ➡️
+            Any pit reaching 4 seeds is CAPTURED! Land on a non-empty pit? Scoop &amp; keep sowing! ➡️
           </div>
         </div>
 
         <ul className="space-y-2.5 text-sm text-emerald-50 mb-5">
-          <li><strong>🌱 Sow Counter-Clockwise:</strong> Tap any pit on your row to drop its seeds one by one counter-clockwise.</li>
-          <li><strong>🔥 Capture (Classic Oware):</strong> If your last seed lands on your opponent&apos;s side making <strong>2 or 3 seeds</strong>, capture it — plus any consecutive 2s/3s right before it!</li>
-          <li><strong>🪵 4-Seed Yorùbá Mode:</strong> Toggle <em>4-Seed Ayò</em> in the lobby to capture any pit that reaches 4 seeds during sowing.</li>
-          <li><strong>🤝 Golden Rule (Feed Opponent):</strong> If your opponent has 0 seeds, you must make a move that gives them seeds if possible.</li>
-          <li><strong>🏆 Win:</strong> First player to capture <strong>25 or more seeds</strong> wins!</li>
+          <li><strong>🌱 Counter-Clockwise Sowing:</strong> Pick up all seeds from any pit on your row and drop them one by one counter-clockwise.</li>
+          <li><strong>🔄 Relay Sowing (Continuous Play):</strong> If your last seed lands in a pit that already has seeds, <strong>scoop up all seeds</strong> in that pit and keep sowing! Your turn ends when your last seed lands in an empty pit (making 1) or completes a 4-seed capture.</li>
+          <li><strong>🔥 4-Seed Capture (Yorùbá Rule):</strong> Whenever a pit reaches <strong>4 seeds</strong> during sowing, those 4 seeds are captured immediately (by the pit’s owner mid-sow, or by YOU if it was your final seed!).</li>
+          <li><strong>🤝 Golden Rule (Feed Opponent):</strong> If your opponent’s row is empty, you must play a move that drops seeds into their row if possible.</li>
+          <li><strong>🏆 Win:</strong> First player to capture <strong>25 or more seeds</strong> out of 48 wins!</li>
         </ul>
 
         <button
@@ -756,6 +776,16 @@ const AyoApp: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                playAyoClick();
+                setSowPace((p) => (p === 'slow' ? 'steady' : p === 'steady' ? 'brisk' : 'slow'));
+              }}
+              className="bg-black/45 hover:bg-black/65 px-3.5 py-2 rounded-full text-xs sm:text-sm font-bold border border-emerald-400/40 text-emerald-200"
+              title="Change sowing speed"
+            >
+              {sowPace === 'slow' ? '🐢 Slow' : sowPace === 'brisk' ? '⚡ Brisk' : '🪵 Steady'}
+            </button>
             <button onClick={() => { playAyoClick(); setIs3D(!is3D); }} className="bg-black/45 hover:bg-black/65 px-3.5 py-2 rounded-full text-xs sm:text-sm font-bold border border-amber-400/40 text-amber-200">
               {is3D ? '🧊 3D View' : '📐 2D View'}
             </button>
@@ -770,9 +800,13 @@ const AyoApp: React.FC = () => {
 
         {/* Board Area */}
         <main className="my-auto py-4">
-          <div aria-live="polite" className="text-center mb-4">
+          <div aria-live="polite" className="text-center mb-4 flex items-center justify-center gap-2.5 flex-wrap">
             <span className="inline-block bg-black/50 border border-white/20 px-5 py-2 rounded-full text-sm sm:text-base font-bold text-amber-100 shadow-lg">
-              {gameState.lastAction}
+              {isAnimating
+                ? animStepKind === 'scoop'
+                  ? `✋ Scooped ${seedsInHand} seed${seedsInHand === 1 ? '' : 's'} — relay sowing...`
+                  : `🌱 Sowing... (${seedsInHand} left in hand)`
+                : gameState.lastAction}
             </span>
           </div>
 
@@ -943,16 +977,16 @@ const AyoApp: React.FC = () => {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-xl border border-white/10">
                     <button
+                      onClick={() => { playAyoClick(); setRuleSet('yoruba_ayo'); }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ruleSet === 'yoruba_ayo' ? 'bg-emerald-600 text-white' : 'text-emerald-200'}`}
+                    >
+                      🇳🇬 Yorùbá Ayò (Relay + 4s)
+                    </button>
+                    <button
                       onClick={() => { playAyoClick(); setRuleSet('oware'); }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ruleSet === 'oware' ? 'bg-emerald-600 text-white' : 'text-emerald-200'}`}
                     >
-                      Classic (2–3 Capture)
-                    </button>
-                    <button
-                      onClick={() => { playAyoClick(); setRuleSet('four_seed'); }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ruleSet === 'four_seed' ? 'bg-emerald-600 text-white' : 'text-emerald-200'}`}
-                    >
-                      4-Seed Yorùbá Ayò
+                      Oware (2–3 Capture)
                     </button>
                   </div>
                   <button onClick={() => setIs3D(!is3D)} className="text-xs font-bold text-amber-200 bg-black/30 px-3 py-1.5 rounded-xl border border-white/10">

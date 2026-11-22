@@ -2,7 +2,7 @@
 
 export type AyoPlayer = 0 | 1; // 0 = South (Ìsàlẹ̀ / Bottom, pits 0..5), 1 = North (Òkè / Top, pits 6..11)
 export type AyoDifficulty = 'easy' | 'medium' | 'hard';
-export type AyoRuleSet = 'oware' | 'four_seed';
+export type AyoRuleSet = 'yoruba_ayo' | 'oware';
 
 export interface AyoState {
   pits: number[];          // length 12: 0..5 belong to Player 0 (South), 6..11 belong to Player 1 (North)
@@ -19,8 +19,11 @@ export interface SowStep {
   pits: number[];
   scores: [number, number];
   activePit: number;
+  seedsInHand: number;
+  kind: 'drop' | 'scoop' | 'capture';
   capturedPits?: number[];
   capturedCount?: number;
+  capturedBy?: AyoPlayer;
 }
 
 export interface AIOpponent {
@@ -121,7 +124,7 @@ export const AYO_CHALLENGES: AyoChallenge[] = [
 ];
 
 export const createAyoGame = (
-  ruleSet: AyoRuleSet = 'oware',
+  ruleSet: AyoRuleSet = 'yoruba_ayo',
   customPits?: number[],
   customScores?: [number, number]
 ): AyoState => ({
@@ -196,63 +199,120 @@ export const applyAyoMove = (
   let idx = pit;
   let capturedTotal = 0;
 
-  // Sow counter-clockwise, skipping origin pit on full lap
-  while (seeds > 0) {
-    idx = (idx + 1) % 12;
-    if (idx === pit) idx = (idx + 1) % 12;
-    pits[idx]++;
-    seeds--;
+  // Initial scoop step so the player sees the seeds lifted from the chosen pit
+  steps.push({
+    pits: [...pits],
+    scores: [scores[0], scores[1]],
+    activePit: pit,
+    seedsInHand: seeds,
+    kind: 'scoop',
+  });
 
-    // Traditional 4-seed Yorùbá Ayò rule: any pit reaching 4 during sowing is captured!
-    if (state.ruleSet === 'four_seed' && pits[idx] === 4) {
-      const owner: AyoPlayer = isOwnPit(idx, player) ? player : opp;
-      const recipient: AyoPlayer = seeds === 0 ? player : owner;
-      scores[recipient] += 4;
-      if (recipient === player) capturedTotal += 4;
-      pits[idx] = 0;
+  if (state.ruleSet === 'yoruba_ayo') {
+    // AUTHENTIC NIGERIAN YORÙBÁ AYÒ ỌLỌ́PỌ́N:
+    // Counter-clockwise relay sowing + 4-seed captures!
+    let safety = 0;
+    const MAX_STEPS = 160;
+    while (seeds > 0 && safety < MAX_STEPS) {
+      safety++;
+      idx = (idx + 1) % 12;
+      pits[idx]++;
+      seeds--;
+
+      // Rule: When a pit reaches 4 seeds during sowing:
+      // - Mid-sow (seeds > 0): the owner of that pit captures the 4 seeds.
+      // - Final seed (seeds === 0): the active player captures the 4 seeds and the turn ends!
+      if (pits[idx] === 4) {
+        const pitOwner: AyoPlayer = isOwnPit(idx, player) ? player : opp;
+        const recipient: AyoPlayer = seeds === 0 ? player : pitOwner;
+        scores[recipient] += 4;
+        if (recipient === player) capturedTotal += 4;
+        pits[idx] = 0;
+        steps.push({
+          pits: [...pits],
+          scores: [scores[0], scores[1]],
+          activePit: idx,
+          seedsInHand: seeds,
+          kind: 'capture',
+          capturedPits: [idx],
+          capturedCount: 4,
+          capturedBy: recipient,
+        });
+        if (seeds === 0) break; // Final seed made 4 -> captured & turn ends
+      } else {
+        steps.push({
+          pits: [...pits],
+          scores: [scores[0], scores[1]],
+          activePit: idx,
+          seedsInHand: seeds,
+          kind: 'drop',
+        });
+
+        // Relay sowing: if last seed lands in a non-empty pit (now > 1), scoop and keep going!
+        if (seeds === 0) {
+          if (pits[idx] > 1) {
+            seeds = pits[idx];
+            pits[idx] = 0;
+            steps.push({
+              pits: [...pits],
+              scores: [scores[0], scores[1]],
+              activePit: idx,
+              seedsInHand: seeds,
+              kind: 'scoop',
+            });
+          } else {
+            // Landed in an empty pit (now 1) -> turn ends!
+            break;
+          }
+        }
+      }
+    }
+  } else {
+    // OWARE / CLASSIC 2-OR-3 CAPTURE VARIANT:
+    // Single-lap sowing (skip origin pit if >= 12 seeds), capture 2s & 3s backward on opponent's row
+    while (seeds > 0) {
+      idx = (idx + 1) % 12;
+      if (idx === pit) idx = (idx + 1) % 12;
+      pits[idx]++;
+      seeds--;
       steps.push({
         pits: [...pits],
         scores: [scores[0], scores[1]],
         activePit: idx,
-        capturedPits: [idx],
-        capturedCount: 4,
-      });
-    } else {
-      steps.push({
-        pits: [...pits],
-        scores: [scores[0], scores[1]],
-        activePit: idx,
+        seedsInHand: seeds,
+        kind: 'drop',
       });
     }
-  }
 
-  // Oware / Classic 2-or-3 Capture on opponent's row (with Grand Slam protection)
-  if (state.ruleSet === 'oware' && isOwnPit(idx, opp)) {
-    const testPits = [...pits];
-    const capPits: number[] = [];
-    let capSum = 0;
-    let cur = idx;
+    if (isOwnPit(idx, opp)) {
+      const testPits = [...pits];
+      const capPits: number[] = [];
+      let capSum = 0;
+      let cur = idx;
 
-    while (isOwnPit(cur, opp) && (testPits[cur] === 2 || testPits[cur] === 3)) {
-      capSum += testPits[cur];
-      capPits.push(cur);
-      testPits[cur] = 0;
-      cur = (cur + 11) % 12;
-    }
+      while (isOwnPit(cur, opp) && (testPits[cur] === 2 || testPits[cur] === 3)) {
+        capSum += testPits[cur];
+        capPits.push(cur);
+        testPits[cur] = 0;
+        cur = (cur + 11) % 12;
+      }
 
-    // Grand Slam protection: only capture if opponent still has seeds OR no seeds left on board
-    const oppRemainingAfterCap = sideSum(testPits, opp);
-    if (capSum > 0 && (oppRemainingAfterCap > 0 || sideSum(testPits, player) === 0)) {
-      for (const cp of capPits) pits[cp] = 0;
-      scores[player] += capSum;
-      capturedTotal += capSum;
-      steps.push({
-        pits: [...pits],
-        scores: [scores[0], scores[1]],
-        activePit: idx,
-        capturedPits: capPits,
-        capturedCount: capSum,
-      });
+      const oppRemainingAfterCap = sideSum(testPits, opp);
+      if (capSum > 0 && (oppRemainingAfterCap > 0 || sideSum(testPits, player) === 0)) {
+        for (const cp of capPits) pits[cp] = 0;
+        scores[player] += capSum;
+        capturedTotal += capSum;
+        steps.push({
+          pits: [...pits],
+          scores: [scores[0], scores[1]],
+          activePit: idx,
+          seedsInHand: 0,
+          kind: 'capture',
+          capturedPits: capPits,
+          capturedCount: capSum,
+          capturedBy: player,
+        });
+      }
     }
   }
 
@@ -279,7 +339,7 @@ export const applyAyoMove = (
     const nextLegal = getLegalMoves(probe);
     const totalOnBoard = sideSum(pits, 0) + sideSum(pits, 1);
 
-    if (nextLegal.length === 0 || totalOnBoard === 0 || (state.ruleSet === 'four_seed' && totalOnBoard <= 4)) {
+    if (nextLegal.length === 0 || totalOnBoard === 0 || (state.ruleSet === 'yoruba_ayo' && totalOnBoard <= 4)) {
       scores[0] += sideSum(pits, 0);
       scores[1] += sideSum(pits, 1);
       for (let i = 0; i < 12; i++) pits[i] = 0;

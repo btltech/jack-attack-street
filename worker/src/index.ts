@@ -531,7 +531,7 @@ export class AyoRoom extends DurableObject<Env> {
     if (msg.t === 'start') {
       if (seatIdx !== 0) { this.send(ws, { t: 'error', error: 'Only the host can start' }); return; }
       if (room.seats.length < 2) { this.send(ws, { t: 'error', error: 'Wait for a friend to join!' }); return; }
-      const ruleSet: AyoRuleSet = msg.ruleSet === 'four_seed' ? 'four_seed' : 'oware';
+      const ruleSet: AyoRuleSet = msg.ruleSet === 'oware' ? 'oware' : 'yoruba_ayo';
       room.game = createAyoGame(ruleSet);
       room.game.lastAction = `${room.seats[0].name}'s turn to sow!`;
       room.phase = 'playing';
