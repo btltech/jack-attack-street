@@ -16,11 +16,13 @@ import CustomRulesModal, { GameRules, loadRules, defaultRules } from './componen
 import HandHints from './components/HandHints';
 import PowerUpShop from './components/PowerUpShop';
 import PersonalityPicker from './components/PersonalityPicker';
+import OnlineRoom from './components/OnlineRoom';
+import { createOnlineRoom, loadNickname, saveNickname } from './core/online';
 import { getTodaysChallenge, getDailyProgress, checkChallengeCompletion } from './core/challenges';
 import { getCurrentTheme, CardTheme } from './core/themes';
 import { PersonalityType, getCurrentPersonality, getStyledCommentary } from './core/commentaryPersonalities';
 
-type GameView = 'menu' | 'playing' | 'gameover';
+type GameView = 'menu' | 'playing' | 'gameover' | 'online';
 
 // --- ANIMATION TYPES ---
 interface FlyingCardState {
@@ -94,18 +96,73 @@ const App: React.FC = () => {
   const [shareCopied, setShareCopied] = useState<boolean>(false);
   const [lastMatchDurationMs, setLastMatchDurationMs] = useState<number>(0);
 
+  // Online multiplayer room state
+  const [menuTab, setMenuTab] = useState<'bot' | 'local' | 'online'>('bot');
+  const [activeRoomCode, setActiveRoomCode] = useState<string | null>(null);
+  const [nickname, setNickname] = useState<string>(() => loadNickname());
+  const [joinCodeInput, setJoinCodeInput] = useState<string>('');
+  const [onlineBusy, setOnlineBusy] = useState<boolean>(false);
+  const [onlineError, setOnlineError] = useState<string | null>(null);
+
   // Game tracking for enhanced stats
   const gameStartTimeRef = useRef<number>(0);
   const cardsPlayedRef = useRef<number>(0);
   const attackCardsUsedRef = useRef<number>(0);
 
-  // Load difficulty preference
+  // Load difficulty preference & check ?room=XXXX invite link
   useEffect(() => {
     const savedDifficulty = localStorage.getItem('jack-attack-difficulty') as Difficulty;
     if (savedDifficulty && Object.values(Difficulty).includes(savedDifficulty)) {
       setSelectedDifficulty(savedDifficulty);
     }
+
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room')?.trim().toUpperCase();
+    if (roomParam && /^[A-Z0-9]{4,6}$/.test(roomParam)) {
+      setJoinCodeInput(roomParam);
+      setMenuTab('online');
+      setActiveRoomCode(roomParam);
+      setView('online');
+    }
   }, []);
+
+  const openRoom = (code: string) => {
+    const clean = code.trim().toUpperCase();
+    if (!/^[A-Z0-9]{4,6}$/.test(clean)) {
+      setOnlineError('Enter a valid 4-letter room code.');
+      return;
+    }
+    saveNickname(nickname || 'Player');
+    setOnlineError(null);
+    setActiveRoomCode(clean);
+    setView('online');
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', clean);
+    window.history.replaceState(null, '', url.toString());
+  };
+
+  const handleCreateRoom = async () => {
+    playClickSound();
+    initAudio();
+    setOnlineBusy(true);
+    setOnlineError(null);
+    try {
+      const code = await createOnlineRoom();
+      openRoom(code);
+    } catch (err) {
+      setOnlineError(err instanceof Error ? err.message : 'Failed to create room.');
+    } finally {
+      setOnlineBusy(false);
+    }
+  };
+
+  const handleLeaveRoom = () => {
+    setActiveRoomCode(null);
+    setView('menu');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+    window.history.replaceState(null, '', url.toString());
+  };
 
   // Trigger screen shake
   const triggerShake = () => {
@@ -435,6 +492,17 @@ const App: React.FC = () => {
 
   // --- RENDER SECTIONS ---
 
+  // 0. ONLINE ROOM
+  if (view === 'online' && activeRoomCode) {
+    return (
+      <OnlineRoom
+        roomCode={activeRoomCode}
+        nickname={nickname.trim() || 'Player'}
+        onLeave={handleLeaveRoom}
+      />
+    );
+  }
+
   // 1. MENU
   if (view === 'menu') {
     return (
@@ -536,73 +604,134 @@ const App: React.FC = () => {
           )}
 
           <div className="space-y-3.5">
-            {/* Game Mode + Player Count Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-              <div>
-                <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Game Mode</p>
-                <div className="flex justify-center gap-2">
-                  <button
-                    onClick={() => { playClickSound(); setSelectedGameMode(GameMode.VsBot); }}
-                    className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${selectedGameMode === GameMode.VsBot
-                      ? 'bg-blue-400 border-blue-600 text-black'
-                      : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                      }`}
-                  >
-                    🤖 vs Bot
-                  </button>
-                  <button
-                    onClick={() => { playClickSound(); setSelectedGameMode(GameMode.LocalMultiplayer); }}
-                    className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${selectedGameMode === GameMode.LocalMultiplayer
-                      ? 'bg-pink-400 border-pink-600 text-black'
-                      : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                      }`}
-                  >
-                    👫 Pass &amp; Play
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Players</p>
-                <div className="flex justify-center gap-2.5">
-                  {[2, 3, 4].map(num => (
-                    <button key={num} onClick={() => { playClickSound(); setSelectedPlayerCount(num); }} className={`w-12 h-11 rounded-xl font-black text-xl border-b-4 transition-all ${selectedPlayerCount === num ? 'bg-yellow-400 border-yellow-600 text-black scale-105 shadow-lg' : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'}`}>{num}</button>
-                  ))}
-                </div>
+            {/* Game Mode Tabs */}
+            <div>
+              <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Game Mode</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => { playClickSound(); setMenuTab('bot'); setSelectedGameMode(GameMode.VsBot); }}
+                  className={`px-2.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'bot'
+                    ? 'bg-blue-400 border-blue-600 text-black'
+                    : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
+                    }`}
+                >
+                  🤖 vs Bot
+                </button>
+                <button
+                  onClick={() => { playClickSound(); setMenuTab('online'); }}
+                  className={`px-2.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'online'
+                    ? 'bg-emerald-400 border-emerald-600 text-black'
+                    : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
+                    }`}
+                >
+                  🌐 Online
+                </button>
+                <button
+                  onClick={() => { playClickSound(); setMenuTab('local'); setSelectedGameMode(GameMode.LocalMultiplayer); }}
+                  className={`px-2.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'local'
+                    ? 'bg-pink-400 border-pink-600 text-black'
+                    : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
+                    }`}
+                >
+                  👫 Pass &amp; Play
+                </button>
               </div>
             </div>
 
-            {/* Difficulty Selector - only show for vs Bot */}
-            {selectedGameMode === GameMode.VsBot && (
-              <div>
-                <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Difficulty</p>
-                <div className="flex justify-center gap-2.5">
-                  {[
-                    { level: Difficulty.Easy, label: '🌟 Easy', color: 'green' },
-                    { level: Difficulty.Medium, label: '🔥 Medium', color: 'yellow' },
-                    { level: Difficulty.Hard, label: '💀 Hard', color: 'red' },
-                  ].map(({ level, label, color }) => (
-                    <button
-                      key={level}
-                      onClick={() => { playClickSound(); setSelectedDifficulty(level); }}
-                      className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${selectedDifficulty === level
-                        ? 'scale-105 shadow-lg'
-                        : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                        }`}
-                      style={selectedDifficulty === level ? {
-                        backgroundColor: color === 'green' ? '#4ade80' : color === 'yellow' ? '#facc15' : '#f87171',
-                        borderColor: color === 'green' ? '#16a34a' : color === 'yellow' ? '#ca8a04' : '#dc2626',
-                        color: 'black'
-                      } : {}}
-                    >
-                      {label}
-                    </button>
-                  ))}
+            {menuTab === 'online' ? (
+              <div className="space-y-3 bg-black/20 p-3.5 rounded-2xl border border-white/15">
+                <div className="text-left">
+                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">
+                    Your Nickname
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={nickname}
+                    onChange={(e) => { setNickname(e.target.value); saveNickname(e.target.value); }}
+                    placeholder="Enter nickname (e.g. StreetKing)"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-indigo-950/80 border-2 border-indigo-400/40 focus:border-yellow-400 focus:outline-none text-white font-bold text-sm placeholder:text-indigo-300/50"
+                  />
+                </div>
+
+                {onlineError && (
+                  <p className="text-xs font-bold text-red-300 bg-red-500/20 border border-red-400/40 rounded-lg px-3 py-1.5">
+                    ⚠️ {onlineError}
+                  </p>
+                )}
+
+                <button
+                  onClick={handleCreateRoom}
+                  disabled={onlineBusy}
+                  className="w-full bg-gradient-to-r from-green-400 to-emerald-600 hover:from-green-500 hover:to-emerald-700 disabled:opacity-60 text-white font-black py-3 px-6 rounded-xl shadow-xl text-base sm:text-lg border-b-4 border-green-800 transition-all active:border-b-0 active:translate-y-0.5"
+                >
+                  {onlineBusy ? 'Creating Room...' : '✨ Create Room & Invite Friends'}
+                </button>
+
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={joinCodeInput}
+                    onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && joinCodeInput.length >= 4) openRoom(joinCodeInput); }}
+                    placeholder="ROOM CODE"
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-indigo-950/80 border-2 border-indigo-400/40 focus:border-yellow-400 focus:outline-none text-white font-black tracking-widest uppercase text-center text-sm placeholder:text-indigo-300/40"
+                  />
+                  <button
+                    onClick={() => { playClickSound(); initAudio(); openRoom(joinCodeInput); }}
+                    className="bg-yellow-400 hover:bg-yellow-300 text-black font-black px-5 py-2.5 rounded-xl border-b-4 border-yellow-600 text-sm transition-all active:border-b-0 active:translate-y-0.5"
+                  >
+                    Join ▶
+                  </button>
                 </div>
               </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div>
+                    <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Players</p>
+                    <div className="flex justify-center gap-2.5">
+                      {[2, 3, 4].map(num => (
+                        <button key={num} onClick={() => { playClickSound(); setSelectedPlayerCount(num); }} className={`w-12 h-11 rounded-xl font-black text-xl border-b-4 transition-all ${selectedPlayerCount === num ? 'bg-yellow-400 border-yellow-600 text-black scale-105 shadow-lg' : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'}`}>{num}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {menuTab === 'bot' && (
+                    <div>
+                      <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Difficulty</p>
+                      <div className="flex justify-center gap-1.5">
+                        {[
+                          { level: Difficulty.Easy, label: '🌟 Easy', color: 'green' },
+                          { level: Difficulty.Medium, label: '🔥 Med', color: 'yellow' },
+                          { level: Difficulty.Hard, label: '💀 Hard', color: 'red' },
+                        ].map(({ level, label, color }) => (
+                          <button
+                            key={level}
+                            onClick={() => { playClickSound(); setSelectedDifficulty(level); }}
+                            className={`flex-1 px-2 py-2.5 rounded-xl font-bold text-xs border-b-4 transition-all ${selectedDifficulty === level
+                              ? 'scale-105 shadow-lg'
+                              : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
+                              }`}
+                            style={selectedDifficulty === level ? {
+                              backgroundColor: color === 'green' ? '#4ade80' : color === 'yellow' ? '#facc15' : '#f87171',
+                              borderColor: color === 'green' ? '#16a34a' : color === 'yellow' ? '#ca8a04' : '#dc2626',
+                              color: 'black'
+                            } : {}}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button onClick={() => startNewGame(selectedPlayerCount, selectedDifficulty, selectedGameMode)} className="w-full bg-gradient-to-r from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-black py-3.5 px-8 rounded-2xl shadow-xl text-xl sm:text-2xl border-b-4 border-green-800 transition-all hover:scale-[1.02] active:scale-95 active:border-b-0 active:translate-y-1">PLAY NOW ▶</button>
+              </>
             )}
 
-            <button onClick={() => startNewGame(selectedPlayerCount, selectedDifficulty, selectedGameMode)} className="w-full bg-gradient-to-r from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-black py-3.5 px-8 rounded-2xl shadow-xl text-xl sm:text-2xl border-b-4 border-green-800 transition-all hover:scale-[1.02] active:scale-95 active:border-b-0 active:translate-y-1">PLAY NOW ▶</button>
             <div className="flex gap-5 justify-center text-sm pt-0.5">
               <button onClick={() => { playClickSound(); setShowTutorial(true); }} className="text-pink-200 hover:text-white font-bold underline decoration-2 underline-offset-4">How to Play?</button>
               <button onClick={() => { playClickSound(); setShowCustomRules(true); }} className="text-blue-200 hover:text-white font-bold underline decoration-2 underline-offset-4">⚙️ Custom Rules</button>
