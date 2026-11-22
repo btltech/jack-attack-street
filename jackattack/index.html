@@ -66,10 +66,21 @@
     </script>
     <style>
       body {
-        background-color: #1a1a2e;
+        background-color: #020617;
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
       }
       .tabular-nums { font-variant-numeric: tabular-nums; }
+      :focus-visible {
+        outline: 3px solid #fde047;
+        outline-offset: 2px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
     </style>
   </head>
   <body>

@@ -78,44 +78,115 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({
         ← Leave Room
       </button>
 
-      <div className="bg-white/10 backdrop-blur-md px-5 py-6 sm:px-7 sm:py-7 rounded-[2rem] shadow-2xl border-4 border-white/20 text-center max-w-lg w-full z-10">
-        <div className="inline-flex items-center gap-2 bg-black/30 px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-purple-200 mb-2">
-          <span className={`w-2.5 h-2.5 rounded-full ${status === 'connected' ? 'bg-green-400' : status === 'error' ? 'bg-red-400' : 'bg-yellow-400 animate-pulse'}`} />
-          <span>{status === 'connected' ? 'Online Room' : status === 'reconnecting' ? 'Reconnecting...' : status === 'error' ? 'Connection Error' : 'Connecting...'}</span>
-        </div>
-
-        <h1 className="text-4xl sm:text-5xl font-black tracking-widest text-yellow-300 drop-shadow-sm mb-1">
-          {roomCode}
-        </h1>
-        <p className="text-xs sm:text-sm text-purple-200 mb-4">
-          Share this code or invite link with friends — no sign-up needed!
-        </p>
-
-        {/* Invite Link Buttons */}
-        <div className="flex gap-2.5 justify-center mb-5">
-          <button
-            onClick={handleCopyInvite}
-            className="flex-1 bg-purple-500 hover:bg-purple-400 text-white font-bold py-2.5 px-4 rounded-xl border-b-4 border-purple-700 text-sm transition-all active:border-b-0 active:translate-y-0.5"
-          >
-            {copied ? '✓ Link Copied!' : '📋 Copy Invite Link'}
-          </button>
-          <button
-            onClick={handleShareInvite}
-            className="bg-blue-500 hover:bg-blue-400 text-white font-bold py-2.5 px-4 rounded-xl border-b-4 border-blue-700 text-sm transition-all active:border-b-0 active:translate-y-0.5"
-          >
-            📤 Share
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 bg-red-500/90 text-white text-sm font-bold px-4 py-2.5 rounded-xl border border-red-300">
-            ⚠️ {error}
+      <div className="bg-white/10 backdrop-blur-md px-5 py-6 sm:px-8 sm:py-7 rounded-[2rem] shadow-2xl border-2 border-white/20 max-w-4xl w-full z-10 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+        {/* Left: Room Code, Invite & Host Controls */}
+        <div className="text-center lg:text-left">
+          <div className="inline-flex items-center gap-2 bg-black/30 px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-purple-200 mb-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${status === 'connected' ? 'bg-green-400' : status === 'error' ? 'bg-red-400' : 'bg-yellow-400 animate-pulse'}`} />
+            <span>{status === 'connected' ? 'Online Room' : status === 'reconnecting' ? 'Reconnecting...' : status === 'error' ? 'Connection Error' : 'Connecting...'}</span>
           </div>
-        )}
 
-        {/* Players List */}
-        <div className="bg-black/25 rounded-2xl p-4 mb-5 text-left border border-white/10">
-          <div className="flex justify-between items-center mb-2.5">
+          <h1 className="font-display text-5xl sm:text-6xl font-black tracking-widest text-yellow-300 drop-shadow-sm mb-1 tabular-nums">
+            {roomCode}
+          </h1>
+          <p className="text-xs sm:text-sm text-purple-200 mb-4">
+            Share this code or invite link with friends — no sign-up needed!
+          </p>
+
+          {/* Invite Link Buttons */}
+          <div className="flex gap-2.5 justify-center lg:justify-start mb-5">
+            <button
+              onClick={handleCopyInvite}
+              className="flex-1 bg-purple-500 hover:bg-purple-400 text-white font-bold py-2.5 px-4 rounded-xl border-b-4 border-purple-700 text-sm transition-all active:border-b-0 active:translate-y-0.5"
+            >
+              {copied ? '✓ Link Copied!' : '📋 Copy Invite Link'}
+            </button>
+            <button
+              onClick={handleShareInvite}
+              className="bg-blue-500 hover:bg-blue-400 text-white font-bold py-2.5 px-4 rounded-xl border-b-4 border-blue-700 text-sm transition-all active:border-b-0 active:translate-y-0.5"
+            >
+              📤 Share
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-4 bg-red-500/90 text-white text-sm font-bold px-4 py-2.5 rounded-xl border border-red-300">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Host Controls */}
+          {isHost ? (
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Table Size</p>
+                  <div className="flex justify-center lg:justify-start gap-2">
+                    {[2, 3, 4].map(num => {
+                      const disabled = num < humans.length;
+                      return (
+                        <button
+                          key={num}
+                          disabled={disabled}
+                          onClick={() => { playClickSound(); setTotalSeats(num); }}
+                          className={`w-12 h-10 rounded-xl font-display font-black text-lg border-b-4 transition-all ${
+                            totalSeats === num
+                              ? 'bg-yellow-400 border-yellow-600 text-black scale-105'
+                              : disabled
+                                ? 'bg-indigo-900/50 border-indigo-950 text-indigo-400/40 cursor-not-allowed'
+                                : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {botsToAdd > 0 && (
+                  <div>
+                    <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Bot Difficulty</p>
+                    <div className="flex justify-center lg:justify-start gap-1.5">
+                      {[
+                        { level: Difficulty.Easy, label: 'Easy' },
+                        { level: Difficulty.Medium, label: 'Med' },
+                        { level: Difficulty.Hard, label: 'Hard' },
+                      ].map(({ level, label }) => (
+                        <button
+                          key={level}
+                          onClick={() => { playClickSound(); setDifficulty(level); }}
+                          className={`flex-1 py-2 px-2 rounded-xl font-bold text-xs border-b-4 transition-all ${
+                            difficulty === level
+                              ? 'bg-yellow-400 border-yellow-600 text-black'
+                              : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => { playClickSound(); onStart(totalSeats, difficulty); }}
+                className="w-full bg-gradient-to-r from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-display font-black py-3.5 px-8 rounded-2xl shadow-xl text-xl border-b-4 border-green-800 transition-all hover:scale-[1.02] active:scale-95 active:border-b-0 active:translate-y-1"
+              >
+                START GAME ▶
+              </button>
+            </div>
+          ) : (
+            <div className="bg-indigo-950/60 border border-indigo-400/30 rounded-2xl py-3.5 px-4 text-sm font-bold text-purple-100 animate-pulse text-center">
+              ⏳ Waiting for {humans[0]?.name || 'the host'} to start the game...
+            </div>
+          )}
+        </div>
+
+        {/* Right: Live Players Roster */}
+        <div className="bg-black/25 rounded-2xl p-4 sm:p-5 text-left border border-white/10">
+          <div className="flex justify-between items-center mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
               Players ({humans.length} / {totalSeats})
             </span>
@@ -126,7 +197,7 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {Array.from({ length: totalSeats }, (_, idx) => {
               const seat = humans[idx];
               if (seat) {
@@ -134,7 +205,7 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({
                 return (
                   <div
                     key={idx}
-                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border ${isMe ? 'bg-yellow-400/20 border-yellow-400/60' : 'bg-white/10 border-white/15'}`}
+                    className={`flex items-center justify-between px-3.5 py-3 rounded-xl border ${isMe ? 'bg-yellow-400/20 border-yellow-400/60' : 'bg-white/10 border-white/15'}`}
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="text-lg">{idx === 0 ? '👑' : '😎'}</span>
@@ -151,7 +222,7 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({
               return (
                 <div
                   key={idx}
-                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-dashed border-white/20 bg-white/5 text-purple-200/80"
+                  className="flex items-center justify-between px-3.5 py-3 rounded-xl border border-dashed border-white/20 bg-white/5 text-purple-200/80"
                 >
                   <div className="flex items-center gap-2.5">
                     <span className="text-lg">🤖</span>
@@ -163,74 +234,6 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({
             })}
           </div>
         </div>
-
-        {/* Host Controls */}
-        {isHost ? (
-          <div className="space-y-3.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Table Size</p>
-                <div className="flex justify-center gap-2">
-                  {[2, 3, 4].map(num => {
-                    const disabled = num < humans.length;
-                    return (
-                      <button
-                        key={num}
-                        disabled={disabled}
-                        onClick={() => { playClickSound(); setTotalSeats(num); }}
-                        className={`w-12 h-10 rounded-xl font-black text-lg border-b-4 transition-all ${
-                          totalSeats === num
-                            ? 'bg-yellow-400 border-yellow-600 text-black scale-105'
-                            : disabled
-                              ? 'bg-indigo-900/50 border-indigo-950 text-indigo-400/40 cursor-not-allowed'
-                              : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {botsToAdd > 0 && (
-                <div>
-                  <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Bot Difficulty</p>
-                  <div className="flex justify-center gap-1.5">
-                    {[
-                      { level: Difficulty.Easy, label: 'Easy' },
-                      { level: Difficulty.Medium, label: 'Med' },
-                      { level: Difficulty.Hard, label: 'Hard' },
-                    ].map(({ level, label }) => (
-                      <button
-                        key={level}
-                        onClick={() => { playClickSound(); setDifficulty(level); }}
-                        className={`flex-1 py-2 px-2 rounded-xl font-bold text-xs border-b-4 transition-all ${
-                          difficulty === level
-                            ? 'bg-yellow-400 border-yellow-600 text-black'
-                            : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => { playClickSound(); onStart(totalSeats, difficulty); }}
-              className="w-full bg-gradient-to-r from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-black py-3.5 px-8 rounded-2xl shadow-xl text-xl border-b-4 border-green-800 transition-all hover:scale-[1.02] active:scale-95 active:border-b-0 active:translate-y-1"
-            >
-              START GAME ▶
-            </button>
-          </div>
-        ) : (
-          <div className="bg-indigo-950/60 border border-indigo-400/30 rounded-2xl py-3.5 px-4 text-sm font-bold text-purple-100 animate-pulse">
-            ⏳ Waiting for {humans[0]?.name || 'the host'} to start the game...
-          </div>
-        )}
       </div>
     </div>
   );

@@ -365,13 +365,14 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
             <button
               onClick={handleDrawClick}
               disabled={!isMyTurn}
+              aria-label={mustPickup ? `Pick up ${game.pendingPickup} penalty cards` : `Draw a card (${game.deckCount} left)`}
               style={cardBackStyle}
-              className={`w-24 h-36 md:w-32 md:h-48 rounded-2xl border-4 border-white/30 shadow-2xl flex items-center justify-center transition-all transform ${
-                mustPickup ? 'ring-8 ring-red-500 animate-pulse scale-105' : 'hover:-translate-y-2'
+              className={`w-28 h-40 sm:w-36 sm:h-52 lg:w-40 lg:h-56 rounded-2xl border-4 border-white/40 shadow-2xl flex items-center justify-center transition-all transform ${
+                mustPickup ? 'ring-8 ring-red-400 animate-pulse scale-105' : 'hover:-translate-y-2'
               } ${!isMyTurn ? 'opacity-80 cursor-default' : 'cursor-pointer'}`}
             >
-              <div className="bg-black/35 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
-                <span className="font-display font-black text-xl md:text-2xl text-white drop-shadow-md">
+              <div className="bg-slate-950/75 px-3.5 py-2 rounded-full backdrop-blur-sm border border-white/30">
+                <span className="font-display font-black text-xl sm:text-2xl text-white drop-shadow-md">
                   {mustPickup ? `+${game.pendingPickup}` : 'DRAW'}
                 </span>
               </div>

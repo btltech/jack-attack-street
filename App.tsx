@@ -675,249 +675,360 @@ const App: React.FC = () => {
     );
   }
 
-  // 1. MENU
+  // 1. MENU (Full-width responsive 2-column Arcade Lobby on desktop, compact stack on mobile)
   if (view === 'menu') {
+    const rankInfo = stats ? getRank(stats) : null;
+    const rankPct = stats && rankInfo && rankInfo.nextAt > 0
+      ? Math.min(100, Math.round((stats.wins / rankInfo.nextAt) * 100))
+      : 100;
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-900 flex flex-col items-center justify-center text-white font-sans relative overflow-x-hidden py-4 px-4">
-        {/* Back to Portal Link */}
-        <a
-          href="/"
-          className="fixed top-4 left-4 z-40 bg-black/35 hover:bg-black/55 backdrop-blur-md text-purple-100 hover:text-white text-xs sm:text-sm font-bold px-3.5 py-2 rounded-full border border-white/20 transition-all shadow-md"
-        >
-          ← All Games
-        </a>
+      <div className={`min-h-screen bg-gradient-to-br ${currentTheme.tableBackground} flex flex-col text-white font-sans relative overflow-x-hidden`}>
+        {/* Subtle Ambient Glows */}
+        <div
+          className="fixed inset-0 pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(circle at 18% 22%, rgba(250, 204, 21, 0.16), transparent 42%), radial-gradient(circle at 82% 78%, rgba(236, 72, 153, 0.18), transparent 45%)',
+          }}
+        />
+        <div
+          className="fixed inset-0 opacity-10 pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(circle, #ffffff 2px, transparent 2px)', backgroundSize: '32px 32px' }}
+        />
 
-        {/* Background Shapes */}
-        <div className="absolute top-20 left-10 w-32 h-32 bg-yellow-400 rounded-full mix-blend-overlay opacity-20 animate-pulse pointer-events-none"></div>
-        <div className="absolute bottom-20 right-10 w-48 h-48 bg-blue-400 rounded-full mix-blend-overlay opacity-20 animate-bounce pointer-events-none"></div>
+        {/* Top Navigation Bar */}
+        <header className="relative z-20 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-2 flex items-center justify-between gap-3 flex-wrap">
+          <a
+            href="/"
+            className="bg-black/35 hover:bg-black/55 backdrop-blur-md text-purple-100 hover:text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-full border border-white/20 transition-all shadow-md"
+          >
+            ← All Games
+          </a>
 
-        <div className="bg-white/10 backdrop-blur-md px-5 py-5 sm:px-7 sm:py-6 rounded-[2rem] shadow-2xl border-4 border-white/20 text-center max-w-lg w-full z-10">
-          <div className="mb-3">
-            <h1 className="text-4xl sm:text-5xl font-black leading-none tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-500 drop-shadow-sm">
-              JACK ATTACK
-            </h1>
-            <h2 className="text-sm sm:text-base font-bold mt-1.5 text-pink-200 tracking-widest uppercase bg-black/25 inline-block px-3.5 py-0.5 rounded-full">
-              Street Edition
-            </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            {stats && (
+              <div className="bg-yellow-400 text-black px-3.5 py-1.5 rounded-full font-display font-black text-sm border-b-4 border-yellow-600 flex items-center gap-1.5 tabular-nums">
+                <span>🪙</span>
+                <span>{stats.coins}</span>
+              </div>
+            )}
+            <button
+              onClick={() => { playClickSound(); setShowDailyBoard(true); }}
+              className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black px-4 py-1.5 rounded-full font-display font-black text-sm border-b-4 border-orange-700 transition-all"
+            >
+              🏆 Daily Leaderboard
+            </button>
+            <button
+              onClick={() => { playClickSound(); setShowTutorial(true); }}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full font-bold text-xs sm:text-sm border border-white/20 transition-all"
+            >
+              ❓ How to Play
+            </button>
           </div>
+        </header>
 
-          {/* Stats Bubble - Compact Above-the-Fold */}
-          {stats && (
-            <>
-              {/* Rank + Quick Stats Row */}
-              <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
-                <div className="bg-gradient-to-r from-yellow-400 to-orange-500 px-4 py-1.5 rounded-full border-b-4 border-orange-600 shadow-md inline-flex items-center gap-1.5">
-                  <span className="text-lg">{getRank(stats).emoji}</span>
-                  <span className="font-black text-black text-sm">{getRank(stats).name}</span>
-                </div>
-                <div className="bg-green-500/80 px-3 py-1.5 rounded-full border-b-4 border-green-700 text-xs font-black">
-                  {stats.wins}W
-                </div>
-                <div className="bg-red-500/80 px-3 py-1.5 rounded-full border-b-4 border-red-700 text-xs font-black">
-                  {stats.losses}L
-                </div>
-                <div className="bg-orange-500/80 px-3 py-1.5 rounded-full border-b-4 border-orange-700 text-xs font-black">
-                  🔥 {stats.currentWinStreak}
-                </div>
-              </div>
-
-              {/* Coins & Action Buttons */}
-              <div className="flex flex-wrap items-center justify-center gap-2.5 mb-3">
-                <div className="bg-yellow-400 text-black px-3.5 py-2 rounded-full font-black text-sm border-b-4 border-yellow-600 flex items-center gap-1.5 shrink-0">
-                  <span>🪙</span>
-                  <span>{stats.coins}</span>
-                </div>
-                <button
-                  onClick={() => { playClickSound(); setShowLeaderboard(true); }}
-                  className="bg-purple-500 hover:bg-purple-400 text-white px-3.5 py-2 rounded-full font-bold text-sm border-b-4 border-purple-700 transition-all shrink-0"
-                >
-                  📊 Stats
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setShowDailyBoard(true); }}
-                  title="Daily Seed Leaderboard"
-                  aria-label="Daily Seed Leaderboard"
-                  className="bg-amber-400 hover:bg-amber-300 text-black px-3.5 py-2 rounded-full font-black text-sm border-b-4 border-amber-600 transition-all shrink-0"
-                >
-                  🏆 Daily
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setShowThemePicker(true); }}
-                  title="Card Themes"
-                  aria-label="Card Themes"
-                  className="w-11 h-11 shrink-0 flex items-center justify-center bg-pink-500 hover:bg-pink-400 text-white rounded-full text-lg border-b-4 border-pink-700 transition-all"
-                >
-                  🎨
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setShowPowerUpShop(true); }}
-                  title="Power-Up Shop"
-                  aria-label="Power-Up Shop"
-                  className="w-11 h-11 shrink-0 flex items-center justify-center bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-lg border-b-4 border-emerald-700 transition-all"
-                >
-                  🛒
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setShowPersonalityPicker(true); }}
-                  title="Commentary Style"
-                  aria-label="Commentary Style"
-                  className="w-11 h-11 shrink-0 flex items-center justify-center bg-indigo-500 hover:bg-indigo-400 text-white rounded-full text-lg border-b-4 border-indigo-700 transition-all"
-                >
-                  🎙️
-                </button>
-              </div>
-
-              {/* Daily Challenge */}
-              <div className="mb-3">
-                <DailyChallenge
-                  onClaim={(reward) => {
-                    if (stats) {
-                      playCoinsSound();
-                      const newStats = { ...stats, coins: stats.coins + reward.coins };
-                      setStats(newStats);
-                      saveStats(newStats);
-                    }
-                  }}
-                />
-              </div>
-            </>
-          )}
-
-          <div className="space-y-3.5">
-            {/* Game Mode Tabs */}
-            <div>
-              <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Game Mode</p>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => { playClickSound(); setMenuTab('bot'); setSelectedGameMode(GameMode.VsBot); }}
-                  className={`px-2.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'bot'
-                    ? 'bg-blue-400 border-blue-600 text-black'
-                    : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                    }`}
-                >
-                  🤖 vs Bot
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setMenuTab('online'); }}
-                  className={`px-2.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'online'
-                    ? 'bg-emerald-400 border-emerald-600 text-black'
-                    : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                    }`}
-                >
-                  🌐 Online
-                </button>
-                <button
-                  onClick={() => { playClickSound(); setMenuTab('local'); setSelectedGameMode(GameMode.LocalMultiplayer); }}
-                  className={`px-2.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'local'
-                    ? 'bg-pink-400 border-pink-600 text-black'
-                    : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                    }`}
-                >
-                  👫 Pass &amp; Play
-                </button>
-              </div>
-            </div>
-
-            {menuTab === 'online' ? (
-              <div className="space-y-3 bg-black/20 p-3.5 rounded-2xl border border-white/15">
+        {/* Main Full-Canvas Grid */}
+        <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center">
+          <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-stretch">
+            {/* LEFT COLUMN: Play Arena */}
+            <div className="lg:col-span-7 bg-white/10 backdrop-blur-md p-5 sm:p-7 rounded-[2rem] shadow-2xl border-2 border-white/20 flex flex-col justify-between">
+              {/* Hero Header + Fanned Power Cards */}
+              <div className="flex items-center justify-between gap-4 mb-5">
                 <div className="text-left">
-                  <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">
-                    Your Nickname
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={16}
-                    value={nickname}
-                    onChange={(e) => { setNickname(e.target.value); saveNickname(e.target.value); }}
-                    placeholder="Enter nickname (e.g. StreetKing)"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-indigo-950/80 border-2 border-indigo-400/40 focus:border-yellow-400 focus:outline-none text-white font-bold text-sm placeholder:text-indigo-300/50"
-                  />
+                  <span className="inline-block bg-black/30 text-pink-200 text-xs font-extrabold uppercase tracking-widest px-3 py-1 rounded-full border border-white/15 mb-2">
+                    Street Edition • Free Online
+                  </span>
+                  <h1 className="font-display text-4xl sm:text-5xl xl:text-6xl font-black leading-[0.95] tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-500">
+                    JACK ATTACK
+                  </h1>
+                  <p className="text-xs sm:text-sm text-purple-100/90 mt-1.5 font-medium">
+                    Stack +2s &amp; Black Jack +5s, swap hands, play online with friends.
+                  </p>
                 </div>
 
-                {onlineError && (
-                  <p className="text-xs font-bold text-red-300 bg-red-500/20 border border-red-400/40 rounded-lg px-3 py-1.5">
-                    ⚠️ {onlineError}
-                  </p>
+                {/* Decorative Fanned Power Cards (visible on sm+) */}
+                <div className="hidden sm:flex items-center relative w-36 h-24 shrink-0" aria-hidden="true">
+                  <div className="absolute left-0 top-2 w-14 h-20 rounded-xl bg-white text-red-600 font-display font-black text-lg flex flex-col items-center justify-center shadow-xl border-2 border-red-300 -rotate-12">
+                    <span>2♥</span>
+                    <span className="text-[9px] bg-red-500 text-white px-1.5 rounded-full mt-0.5">+2</span>
+                  </div>
+                  <div className="absolute left-10 top-0 w-16 h-22 rounded-xl bg-gradient-to-b from-slate-900 to-black text-amber-300 font-display font-black text-xl flex flex-col items-center justify-center shadow-2xl border-2 border-amber-400 z-10 py-3">
+                    <span>J♠</span>
+                    <span className="text-[9px] bg-amber-400 text-black px-1.5 rounded-full mt-0.5">🔥+5</span>
+                  </div>
+                  <div className="absolute left-20 top-2 w-14 h-20 rounded-xl bg-white text-purple-700 font-display font-black text-lg flex flex-col items-center justify-center shadow-xl border-2 border-purple-400 rotate-12">
+                    <span>Q♦</span>
+                    <span className="text-[9px] bg-purple-600 text-white px-1.5 rounded-full mt-0.5">WILD</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mode Selector + Controls */}
+              <div className="space-y-4">
+                <div>
+                  <p className="text-purple-200 text-xs mb-2 font-bold uppercase tracking-wider text-left">Choose Game Mode</p>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <button
+                      onClick={() => { playClickSound(); setMenuTab('bot'); setSelectedGameMode(GameMode.VsBot); }}
+                      className={`px-3 py-3 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'bot'
+                        ? 'bg-blue-400 border-blue-600 text-black scale-[1.02] shadow-lg'
+                        : 'bg-indigo-800/80 border-indigo-950 text-indigo-100 hover:bg-indigo-700'
+                        }`}
+                    >
+                      🤖 vs Bot
+                    </button>
+                    <button
+                      onClick={() => { playClickSound(); setMenuTab('online'); }}
+                      className={`px-3 py-3 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'online'
+                        ? 'bg-emerald-400 border-emerald-600 text-black scale-[1.02] shadow-lg'
+                        : 'bg-indigo-800/80 border-indigo-950 text-indigo-100 hover:bg-indigo-700'
+                        }`}
+                    >
+                      🌐 Online
+                    </button>
+                    <button
+                      onClick={() => { playClickSound(); setMenuTab('local'); setSelectedGameMode(GameMode.LocalMultiplayer); }}
+                      className={`px-3 py-3 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${menuTab === 'local'
+                        ? 'bg-pink-400 border-pink-600 text-black scale-[1.02] shadow-lg'
+                        : 'bg-indigo-800/80 border-indigo-950 text-indigo-100 hover:bg-indigo-700'
+                        }`}
+                    >
+                      👫 Pass &amp; Play
+                    </button>
+                  </div>
+                </div>
+
+                {menuTab === 'online' ? (
+                  <div className="space-y-3 bg-black/25 p-4 rounded-2xl border border-white/15">
+                    <div className="text-left">
+                      <label className="block text-purple-200 text-xs font-bold uppercase tracking-wide mb-1">
+                        Your Nickname
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={16}
+                        value={nickname}
+                        onChange={(e) => { setNickname(e.target.value); saveNickname(e.target.value); }}
+                        placeholder="Enter nickname (e.g. StreetKing)"
+                        className="w-full px-4 py-2.5 rounded-xl bg-indigo-950/80 border-2 border-indigo-400/40 focus:border-yellow-400 focus:outline-none text-white font-bold text-sm placeholder:text-indigo-300/50"
+                      />
+                    </div>
+
+                    {onlineError && (
+                      <p className="text-xs font-bold text-red-300 bg-red-500/20 border border-red-400/40 rounded-lg px-3 py-1.5">
+                        ⚠️ {onlineError}
+                      </p>
+                    )}
+
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={onlineBusy}
+                      className="w-full bg-gradient-to-r from-green-400 to-emerald-600 hover:from-green-500 hover:to-emerald-700 disabled:opacity-60 text-white font-display font-black py-3.5 px-6 rounded-xl shadow-xl text-lg sm:text-xl border-b-4 border-green-800 transition-all active:border-b-0 active:translate-y-0.5"
+                    >
+                      {onlineBusy ? 'Creating Room...' : '✨ Create Room & Invite Friends'}
+                    </button>
+
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={joinCodeInput}
+                        onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && joinCodeInput.length >= 4) openRoom(joinCodeInput); }}
+                        placeholder="ROOM CODE"
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-950/80 border-2 border-indigo-400/40 focus:border-yellow-400 focus:outline-none text-white font-display font-black tracking-widest uppercase text-center text-sm placeholder:text-indigo-300/40"
+                      />
+                      <button
+                        onClick={() => { playClickSound(); initAudio(); openRoom(joinCodeInput); }}
+                        className="bg-yellow-400 hover:bg-yellow-300 text-black font-display font-black px-6 py-2.5 rounded-xl border-b-4 border-yellow-600 text-sm transition-all active:border-b-0 active:translate-y-0.5"
+                      >
+                        Join ▶
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 bg-black/20 p-4 rounded-2xl border border-white/10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                      <div className="text-left">
+                        <p className="text-purple-200 text-xs mb-2 font-bold uppercase tracking-wide">Players</p>
+                        <div className="flex gap-2.5">
+                          {[2, 3, 4].map(num => (
+                            <button key={num} onClick={() => { playClickSound(); setSelectedPlayerCount(num); }} className={`flex-1 h-12 rounded-xl font-display font-black text-2xl border-b-4 transition-all ${selectedPlayerCount === num ? 'bg-yellow-400 border-yellow-600 text-black scale-105 shadow-lg' : 'bg-indigo-800/80 border-indigo-950 text-indigo-200 hover:bg-indigo-700'}`}>{num}</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {menuTab === 'bot' && (
+                        <div className="text-left">
+                          <p className="text-purple-200 text-xs mb-2 font-bold uppercase tracking-wide">Difficulty</p>
+                          <div className="flex gap-2">
+                            {[
+                              { level: Difficulty.Easy, label: '🌟 Easy', color: 'green' },
+                              { level: Difficulty.Medium, label: '🔥 Med', color: 'yellow' },
+                              { level: Difficulty.Hard, label: '💀 Hard', color: 'red' },
+                            ].map(({ level, label, color }) => (
+                              <button
+                                key={level}
+                                onClick={() => { playClickSound(); setSelectedDifficulty(level); }}
+                                className={`flex-1 h-12 px-2 rounded-xl font-bold text-xs sm:text-sm border-b-4 transition-all ${selectedDifficulty === level
+                                  ? 'scale-105 shadow-lg'
+                                  : 'bg-indigo-800/80 border-indigo-950 text-indigo-200 hover:bg-indigo-700'
+                                  }`}
+                                style={selectedDifficulty === level ? {
+                                  backgroundColor: color === 'green' ? '#4ade80' : color === 'yellow' ? '#facc15' : '#f87171',
+                                  borderColor: color === 'green' ? '#16a34a' : color === 'yellow' ? '#ca8a04' : '#dc2626',
+                                  color: 'black'
+                                } : {}}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => startNewGame(selectedPlayerCount, selectedDifficulty, selectedGameMode)}
+                      className="w-full bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-500 hover:to-green-600 text-white font-display font-black py-4 px-8 rounded-2xl shadow-xl text-2xl border-b-4 border-emerald-900 transition-all hover:scale-[1.01] active:scale-95 active:border-b-0 active:translate-y-1"
+                    >
+                      PLAY NOW ▶
+                    </button>
+                  </div>
                 )}
 
-                <button
-                  onClick={handleCreateRoom}
-                  disabled={onlineBusy}
-                  className="w-full bg-gradient-to-r from-green-400 to-emerald-600 hover:from-green-500 hover:to-emerald-700 disabled:opacity-60 text-white font-black py-3 px-6 rounded-xl shadow-xl text-base sm:text-lg border-b-4 border-green-800 transition-all active:border-b-0 active:translate-y-0.5"
-                >
-                  {onlineBusy ? 'Creating Room...' : '✨ Create Room & Invite Friends'}
-                </button>
-
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={joinCodeInput}
-                    onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && joinCodeInput.length >= 4) openRoom(joinCodeInput); }}
-                    placeholder="ROOM CODE"
-                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-indigo-950/80 border-2 border-indigo-400/40 focus:border-yellow-400 focus:outline-none text-white font-black tracking-widest uppercase text-center text-sm placeholder:text-indigo-300/40"
-                  />
+                {/* Quick Power Card Legend */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] sm:text-xs text-purple-100/90">
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="bg-black/30 px-2.5 py-1 rounded-full border border-white/10">💥 <b>2</b> +2</span>
+                    <span className="bg-black/30 px-2.5 py-1 rounded-full border border-amber-400/40 text-amber-200">🔥 <b>J♠/♣</b> +5</span>
+                    <span className="bg-black/30 px-2.5 py-1 rounded-full border border-white/10">👑 <b>Q</b> Wild</span>
+                    <span className="bg-black/30 px-2.5 py-1 rounded-full border border-white/10">🤴 <b>K</b> Swap</span>
+                    <span className="bg-black/30 px-2.5 py-1 rounded-full border border-white/10">🚫 <b>8</b> Skip</span>
+                    <span className="bg-black/30 px-2.5 py-1 rounded-full border border-white/10">👁️ <b>7</b> Peek</span>
+                  </div>
                   <button
-                    onClick={() => { playClickSound(); initAudio(); openRoom(joinCodeInput); }}
-                    className="bg-yellow-400 hover:bg-yellow-300 text-black font-black px-5 py-2.5 rounded-xl border-b-4 border-yellow-600 text-sm transition-all active:border-b-0 active:translate-y-0.5"
+                    onClick={() => { playClickSound(); setShowCustomRules(true); }}
+                    className="text-blue-200 hover:text-white font-bold underline decoration-2 underline-offset-4 shrink-0"
                   >
-                    Join ▶
+                    ⚙️ Custom Rules
                   </button>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                  <div>
-                    <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Players</p>
-                    <div className="flex justify-center gap-2.5">
-                      {[2, 3, 4].map(num => (
-                        <button key={num} onClick={() => { playClickSound(); setSelectedPlayerCount(num); }} className={`w-12 h-11 rounded-xl font-black text-xl border-b-4 transition-all ${selectedPlayerCount === num ? 'bg-yellow-400 border-yellow-600 text-black scale-105 shadow-lg' : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'}`}>{num}</button>
-                      ))}
+            </div>
+
+            {/* RIGHT COLUMN: Profile, Daily Challenge, Themes, Shop & Voices */}
+            <div className="lg:col-span-5 flex flex-col gap-4 justify-between">
+              {/* Street Profile Card */}
+              {stats && rankInfo && (
+                <div className="bg-white/10 backdrop-blur-md p-5 rounded-[2rem] shadow-2xl border-2 border-white/20">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-2xl shadow-lg border-b-4 border-orange-700">
+                        {rankInfo.emoji}
+                      </div>
+                      <div className="text-left">
+                        <div className="font-display font-black text-lg leading-tight text-yellow-300">
+                          {rankInfo.name}
+                        </div>
+                        <div className="text-xs text-purple-200">
+                          {stats.wins < rankInfo.nextAt
+                            ? `${rankInfo.nextAt - stats.wins} wins to next rank`
+                            : 'Max street rank achieved!'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { playClickSound(); setShowLeaderboard(true); }}
+                      className="bg-purple-500 hover:bg-purple-400 text-white px-3.5 py-2 rounded-xl font-bold text-xs border-b-4 border-purple-700 transition-all shrink-0"
+                    >
+                      📊 Full Stats
+                    </button>
+                  </div>
+
+                  {/* Rank Progress Bar */}
+                  <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden mb-4">
+                    <div
+                      className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full transition-all duration-500"
+                      style={{ width: `${rankPct}%` }}
+                    />
+                  </div>
+
+                  {/* Stats Row (WCAG AA+ contrast) */}
+                  <div className="grid grid-cols-3 gap-2.5 mb-4 text-center">
+                    <div className="bg-emerald-800 py-2.5 px-2 rounded-xl border-b-4 border-emerald-950">
+                      <div className="text-[11px] uppercase font-bold text-emerald-100">Wins</div>
+                      <div className="font-display text-2xl font-black text-white tabular-nums">{stats.wins}</div>
+                    </div>
+                    <div className="bg-rose-800 py-2.5 px-2 rounded-xl border-b-4 border-rose-950">
+                      <div className="text-[11px] uppercase font-bold text-rose-100">Losses</div>
+                      <div className="font-display text-2xl font-black text-white tabular-nums">{stats.losses}</div>
+                    </div>
+                    <div className="bg-amber-800 py-2.5 px-2 rounded-xl border-b-4 border-amber-950">
+                      <div className="text-[11px] uppercase font-bold text-amber-100">🔥 Streak</div>
+                      <div className="font-display text-2xl font-black text-white tabular-nums">{stats.currentWinStreak}</div>
                     </div>
                   </div>
 
-                  {menuTab === 'bot' && (
-                    <div>
-                      <p className="text-purple-200 text-xs mb-1.5 font-bold uppercase tracking-wide">Difficulty</p>
-                      <div className="flex justify-center gap-1.5">
-                        {[
-                          { level: Difficulty.Easy, label: '🌟 Easy', color: 'green' },
-                          { level: Difficulty.Medium, label: '🔥 Med', color: 'yellow' },
-                          { level: Difficulty.Hard, label: '💀 Hard', color: 'red' },
-                        ].map(({ level, label, color }) => (
-                          <button
-                            key={level}
-                            onClick={() => { playClickSound(); setSelectedDifficulty(level); }}
-                            className={`flex-1 px-2 py-2.5 rounded-xl font-bold text-xs border-b-4 transition-all ${selectedDifficulty === level
-                              ? 'scale-105 shadow-lg'
-                              : 'bg-indigo-700 border-indigo-900 text-indigo-200 hover:bg-indigo-600'
-                              }`}
-                            style={selectedDifficulty === level ? {
-                              backgroundColor: color === 'green' ? '#4ade80' : color === 'yellow' ? '#facc15' : '#f87171',
-                              borderColor: color === 'green' ? '#16a34a' : color === 'yellow' ? '#ca8a04' : '#dc2626',
-                              color: 'black'
-                            } : {}}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Labeled Customization & Shop Buttons (WCAG AA+ contrast) */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => { playClickSound(); setShowThemePicker(true); }}
+                      className="bg-pink-700 hover:bg-pink-600 text-white py-2.5 px-2 rounded-xl font-bold text-xs border-b-4 border-pink-900 transition-all flex flex-col items-center gap-0.5"
+                    >
+                      <span className="text-lg" aria-hidden="true">🎨</span>
+                      <span>Themes</span>
+                    </button>
+                    <button
+                      onClick={() => { playClickSound(); setShowPowerUpShop(true); }}
+                      className="bg-emerald-700 hover:bg-emerald-600 text-white py-2.5 px-2 rounded-xl font-bold text-xs border-b-4 border-emerald-900 transition-all flex flex-col items-center gap-0.5"
+                    >
+                      <span className="text-lg" aria-hidden="true">🛒</span>
+                      <span>Shop</span>
+                    </button>
+                    <button
+                      onClick={() => { playClickSound(); setShowPersonalityPicker(true); }}
+                      className="bg-indigo-700 hover:bg-indigo-600 text-white py-2.5 px-2 rounded-xl font-bold text-xs border-b-4 border-indigo-900 transition-all flex flex-col items-center gap-0.5"
+                    >
+                      <span className="text-lg" aria-hidden="true">🎙️</span>
+                      <span>Voices</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Daily Seed & Daily Challenge Card */}
+              <div className="bg-white/10 backdrop-blur-md p-5 rounded-[2rem] shadow-2xl border-2 border-yellow-400/40 flex-1 flex flex-col justify-between gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-left">
+                    <div className="text-xs font-extrabold uppercase tracking-wider text-yellow-300">Same Deck Worldwide</div>
+                    <h2 className="font-display font-black text-xl text-white">⚡ Daily Seed Challenge</h2>
+                  </div>
+                  <button
+                    onClick={() => { playClickSound(); setShowDailyBoard(true); }}
+                    className="bg-yellow-400 hover:bg-yellow-300 text-black font-display font-black text-xs px-3.5 py-2 rounded-xl border-b-4 border-yellow-600 transition-all shrink-0"
+                  >
+                    Play &amp; Rank ▶
+                  </button>
                 </div>
 
-                <button onClick={() => startNewGame(selectedPlayerCount, selectedDifficulty, selectedGameMode)} className="w-full bg-gradient-to-r from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white font-black py-3.5 px-8 rounded-2xl shadow-xl text-xl sm:text-2xl border-b-4 border-green-800 transition-all hover:scale-[1.02] active:scale-95 active:border-b-0 active:translate-y-1">PLAY NOW ▶</button>
-              </>
-            )}
-
-            <div className="flex gap-5 justify-center text-sm pt-0.5">
-              <button onClick={() => { playClickSound(); setShowTutorial(true); }} className="text-pink-200 hover:text-white font-bold underline decoration-2 underline-offset-4">How to Play?</button>
-              <button onClick={() => { playClickSound(); setShowCustomRules(true); }} className="text-blue-200 hover:text-white font-bold underline decoration-2 underline-offset-4">⚙️ Custom Rules</button>
+                {stats && (
+                  <DailyChallenge
+                    onClaim={(reward) => {
+                      if (stats) {
+                        playCoinsSound();
+                        const newStats = { ...stats, coins: stats.coins + reward.coins };
+                        setStats(newStats);
+                        saveStats(newStats);
+                      }
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </main>
 
         {/* Rules Modal */}
         {showRules && (
@@ -1382,9 +1493,9 @@ const App: React.FC = () => {
       {/* HAND HINTS */}
       <HandHints gameState={gameState} enabled={hintsEnabled} />
 
-      {/* ERROR MESSAGE / TOAST - Small top-left notification */}
+      {/* ERROR MESSAGE / TOAST - Accessible live alert */}
       {errorMsg && (
-        <div className="fixed top-4 left-4 z-[60] max-w-xs bg-red-500/95 text-white px-4 py-2 rounded-xl shadow-lg toast-enter border-2 border-red-300 font-bold text-sm backdrop-blur-sm">
+        <div role="alert" aria-live="assertive" className="fixed top-4 left-4 z-[60] max-w-xs bg-red-700 text-white px-4 py-2.5 rounded-xl shadow-lg toast-enter border-2 border-red-300 font-bold text-sm">
           {errorMsg}
         </div>
       )}
@@ -1392,8 +1503,8 @@ const App: React.FC = () => {
       {/* CENTER TABLE */}
       <div className="absolute inset-0 flex items-center justify-center">
         {/* Game Status Banner */}
-        <div className="absolute top-[20%] md:top-[28%] z-0 w-full text-center pointer-events-none">
-          <span className="inline-block bg-indigo-900/60 text-indigo-100 px-6 py-2 rounded-full text-sm md:text-lg font-bold backdrop-blur-md border border-indigo-500/50 shadow-lg max-w-[90%] truncate">
+        <div aria-live="polite" className="absolute top-[19%] md:top-[25%] z-0 w-full text-center pointer-events-none">
+          <span className="inline-block bg-slate-950/80 text-white px-6 py-2 rounded-full text-sm md:text-lg font-bold backdrop-blur-md border border-white/25 shadow-lg max-w-[90%] truncate">
             {gameState.lastAction}
           </span>
         </div>
@@ -1405,11 +1516,12 @@ const App: React.FC = () => {
               ref={drawPileRef}
               onClick={handleDrawClick}
               disabled={!isPlayerTurn}
+              aria-label={mustPickup ? `Pick up ${gameState.pendingPickup} penalty cards` : `Draw a card from deck (${gameState.deck.length} remaining)`}
               style={themeCardBack}
-              className={`w-24 h-36 md:w-32 md:h-48 rounded-2xl border-4 border-white/30 shadow-2xl flex items-center justify-center transition-all transform ${mustPickup ? 'ring-8 ring-red-500 animate-pulse scale-105' : 'hover:-translate-y-2 hover:shadow-indigo-500/50'} ${!isPlayerTurn ? 'opacity-80' : 'cursor-pointer'}`}
+              className={`w-28 h-40 sm:w-36 sm:h-52 lg:w-40 lg:h-56 rounded-2xl border-4 border-white/40 shadow-2xl flex items-center justify-center transition-all transform ${mustPickup ? 'ring-8 ring-red-400 animate-pulse scale-105' : 'hover:-translate-y-2 hover:shadow-indigo-500/50'} ${!isPlayerTurn ? 'opacity-80' : 'cursor-pointer'}`}
             >
-              <div className="bg-black/35 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
-                <span className="font-display font-black text-xl md:text-2xl text-white drop-shadow-md">{mustPickup ? `+${gameState.pendingPickup}` : 'DRAW'}</span>
+              <div className="bg-slate-950/75 px-3.5 py-2 rounded-full backdrop-blur-sm border border-white/30">
+                <span className="font-display font-black text-xl sm:text-2xl text-white drop-shadow-md">{mustPickup ? `+${gameState.pendingPickup}` : 'DRAW'}</span>
               </div>
             </button>
             {/* Deck thickness illusion */}
