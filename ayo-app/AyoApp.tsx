@@ -158,9 +158,9 @@ const AyoApp: React.FC = () => {
     setIsAnimating(true);
     clearAnimTimers();
 
-    // Slow, steady, rhythmic pacing so every seed drop, relay scoop, and capture is easy to follow
-    const baseDelay = sowPace === 'slow' ? 460 : sowPace === 'brisk' ? 210 : 340;
-    let elapsed = 0;
+    // Deliberate, calm wooden-board sowing rhythm so every seed drop, relay scoop, and 4-seed capture is effortless to follow
+    const baseDelay = sowPace === 'slow' ? 920 : sowPace === 'brisk' ? 380 : 680;
+    let elapsed = 260;
 
     steps.forEach((step, i) => {
       const tid = window.setTimeout(() => {
@@ -174,10 +174,10 @@ const AyoApp: React.FC = () => {
           setCapturedPits(step.capturedPits);
           playCaptureSound(step.capturedCount || 4);
           const capLabel = step.capturedBy !== undefined
-            ? `${names[step.capturedBy]} +${step.capturedCount}!`
-            : `+${step.capturedCount} CAPTURED!`;
-          setCaptureFlash(`🔥 ${capLabel}`);
-          window.setTimeout(() => setCaptureFlash(null), 1100);
+            ? `${names[step.capturedBy]} +${step.capturedCount}`
+            : `+${step.capturedCount} Captured`;
+          setCaptureFlash(capLabel);
+          window.setTimeout(() => setCaptureFlash(null), 1300);
         } else if (step.kind === 'scoop') {
           setCapturedPits([]);
           playAyoClick();
@@ -188,8 +188,8 @@ const AyoApp: React.FC = () => {
       }, elapsed);
       animTimersRef.current.push(tid);
 
-      // Extra breathing room on scoops and captures so relays feel calm and readable
-      elapsed += step.kind === 'capture' ? baseDelay + 260 : step.kind === 'scoop' ? baseDelay + 180 : baseDelay;
+      // Generous pauses on relay scoops and 4-seed captures so the board breathes naturally
+      elapsed += step.kind === 'capture' ? baseDelay + 560 : step.kind === 'scoop' ? baseDelay + 420 : baseDelay;
     });
 
     const endTid = window.setTimeout(() => {
@@ -208,14 +208,14 @@ const AyoApp: React.FC = () => {
         else playAyoGoodGameSound();
         if (!isPassAndPlay) awardXp(nextState.winner === 0);
       } else if (captured >= 4) {
-        setCaptureFlash(`🔥 MASTER CAPTURE +${captured}!`);
-        window.setTimeout(() => setCaptureFlash(null), 1200);
+        setCaptureFlash(`Master Capture +${captured}`);
+        window.setTimeout(() => setCaptureFlash(null), 1300);
       }
-    }, elapsed + 160);
+    }, elapsed + 380);
     animTimersRef.current.push(endTid);
   };
 
-  // AI Turn trigger
+  // AI Turn trigger (calm pause before AI begins sowing)
   useEffect(() => {
     if (screen !== 'game' || !gameState || isAnimating || isPassAndPlay) return;
     if (gameState.winner !== null || gameState.turn !== 1) return;
@@ -226,7 +226,7 @@ const AyoApp: React.FC = () => {
       if (move !== null) {
         executeMove(gameState, move);
       }
-    }, 650);
+    }, 1250);
     return () => clearTimeout(tid);
   }, [screen, gameState, isAnimating, isPassAndPlay, opponent, activeChallenge]);
 
@@ -784,7 +784,7 @@ const AyoApp: React.FC = () => {
               className="bg-black/45 hover:bg-black/65 px-3.5 py-2 rounded-full text-xs sm:text-sm font-bold border border-emerald-400/40 text-emerald-200"
               title="Change sowing speed"
             >
-              {sowPace === 'slow' ? '🐢 Slow' : sowPace === 'brisk' ? '⚡ Brisk' : '🪵 Steady'}
+              {sowPace === 'slow' ? '🐢 Relaxed' : sowPace === 'brisk' ? '⚡ Brisk' : '🪵 Classic'}
             </button>
             <button onClick={() => { playAyoClick(); setIs3D(!is3D); }} className="bg-black/45 hover:bg-black/65 px-3.5 py-2 rounded-full text-xs sm:text-sm font-bold border border-amber-400/40 text-amber-200">
               {is3D ? '🧊 3D View' : '📐 2D View'}
@@ -975,23 +975,41 @@ const AyoApp: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-xl border border-white/10">
+                  <div className="flex items-center gap-1 bg-black/30 p-1 rounded-xl border border-white/10">
                     <button
                       onClick={() => { playAyoClick(); setRuleSet('yoruba_ayo'); }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ruleSet === 'yoruba_ayo' ? 'bg-emerald-600 text-white' : 'text-emerald-200'}`}
                     >
-                      🇳🇬 Yorùbá Ayò (Relay + 4s)
+                      Yorùbá Ayò (Relay + 4s)
                     </button>
                     <button
                       onClick={() => { playAyoClick(); setRuleSet('oware'); }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold ${ruleSet === 'oware' ? 'bg-emerald-600 text-white' : 'text-emerald-200'}`}
                     >
-                      Oware (2–3 Capture)
+                      Oware (2–3)
                     </button>
                   </div>
-                  <button onClick={() => setIs3D(!is3D)} className="text-xs font-bold text-amber-200 bg-black/30 px-3 py-1.5 rounded-xl border border-white/10">
-                    {is3D ? '🧊 3D Board: ON' : '📐 2D Board'}
-                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 bg-black/30 p-1 rounded-xl border border-white/10" aria-label="Sowing pace">
+                      {([
+                        { id: 'slow' as const, label: 'Relaxed' },
+                        { id: 'steady' as const, label: 'Classic' },
+                        { id: 'brisk' as const, label: 'Brisk' },
+                      ]).map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => { playAyoClick(); setSowPace(p.id); }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${sowPace === p.id ? 'bg-amber-400 text-slate-950' : 'text-emerald-200'}`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setIs3D(!is3D)} className="text-xs font-bold text-amber-200 bg-black/30 px-3 py-2 rounded-xl border border-white/10">
+                      {is3D ? '3D' : '2D'}
+                    </button>
+                  </div>
                 </div>
 
                 <button
