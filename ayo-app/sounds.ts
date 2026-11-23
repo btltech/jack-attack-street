@@ -3,7 +3,11 @@
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let noiseBuf: AudioBuffer | null = null;
-let muted = false;
+const MUTE_KEY = 'ayo-muted';
+const readMuted = (): boolean => {
+  try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
+};
+let muted = readMuted();
 
 const getAudio = (): { c: AudioContext; out: AudioNode } | null => {
   if (muted) return null;
@@ -42,7 +46,10 @@ const getNoiseBuffer = (c: AudioContext): AudioBuffer => {
   return buf;
 };
 
-export const setAyoMuted = (v: boolean) => { muted = v; };
+export const setAyoMuted = (v: boolean) => {
+  muted = v;
+  try { localStorage.setItem(MUTE_KEY, v ? '1' : '0'); } catch { /* storage unavailable */ }
+};
 export const isAyoMuted = () => muted;
 
 // Short filtered noise burst for hard seed shell & wood strike transients

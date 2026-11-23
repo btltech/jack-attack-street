@@ -117,7 +117,7 @@ const HandHints: React.FC<HandHintsProps> = ({ gameState, enabled }) => {
     const suggestions = getCardSuggestions(gameState);
     const bestSuggestion = suggestions[0];
 
-    const positionClasses = "fixed top-[4.25rem] right-4 z-40 max-w-[260px] text-center shadow-lg pointer-events-none";
+    const positionClasses = "fixed top-[4.25rem] right-4 max-md:top-auto max-md:bottom-[16.75rem] max-md:left-1/2 max-md:right-auto max-md:-translate-x-1/2 max-md:w-max z-40 max-w-[260px] text-center shadow-lg pointer-events-none";
 
     if (!bestSuggestion) {
         if (gameState.pendingPickup > 0) {

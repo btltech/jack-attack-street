@@ -123,6 +123,9 @@ export const AYO_CHALLENGES: AyoChallenge[] = [
   },
 ];
 
+// Hard cap on Oware game length (moves by both players) to end endless cycles.
+const OWARE_MAX_MOVES = 400;
+
 export const createAyoGame = (
   ruleSet: AyoRuleSet = 'yoruba_ayo',
   customPits?: number[],
@@ -267,6 +270,21 @@ export const applyAyoMove = (
         }
       }
     }
+
+    // A relay that never settles (it hit MAX_STEPS) used to drop the seeds still in hand,
+    // so the board no longer held 48 seeds. Award them to the sowing player instead.
+    if (seeds > 0) {
+      scores[player] += seeds;
+      capturedTotal += seeds;
+      seeds = 0;
+      steps.push({
+        pits: [...pits],
+        scores: [scores[0], scores[1]],
+        activePit: idx,
+        seedsInHand: 0,
+        kind: 'drop',
+      });
+    }
   } else {
     // OWARE / CLASSIC 2-OR-3 CAPTURE VARIANT:
     // Single-lap sowing (skip origin pit if >= 12 seeds), capture 2s & 3s backward on opponent's row
@@ -339,7 +357,11 @@ export const applyAyoMove = (
     const nextLegal = getLegalMoves(probe);
     const totalOnBoard = sideSum(pits, 0) + sideSum(pits, 1);
 
-    if (nextLegal.length === 0 || totalOnBoard === 0 || (state.ruleSet === 'yoruba_ayo' && totalOnBoard <= 4)) {
+    // Oware can cycle forever; by convention a repeating endgame ends with each player
+    // keeping the seeds on their own side, so cap the game length.
+    const stalemate = state.ruleSet === 'oware' && state.moveCount + 1 >= OWARE_MAX_MOVES;
+
+    if (nextLegal.length === 0 || totalOnBoard === 0 || stalemate || (state.ruleSet === 'yoruba_ayo' && totalOnBoard <= 4)) {
       scores[0] += sideSum(pits, 0);
       scores[1] += sideSum(pits, 1);
       for (let i = 0; i < 12; i++) pits[i] = 0;

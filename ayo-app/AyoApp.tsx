@@ -46,6 +46,12 @@ const AyoApp: React.FC = () => {
   const [ruleSet, setRuleSet] = useState<AyoRuleSet>('yoruba_ayo');
   const [sowPace, setSowPace] = useState<'slow' | 'steady' | 'brisk'>('steady');
   const [is3D, setIs3D] = useState<boolean>(true);
+  const [viewportW, setViewportW] = useState<number>(() => (typeof window === 'undefined' ? 1024 : window.innerWidth));
+  useEffect(() => {
+    const onResize = () => setViewportW(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [muted, setMuted] = useState<boolean>(() => isAyoMuted());
   const [profile, setProfile] = useState<AyoProfile>(() => loadProfile());
   const [showGuide, setShowGuide] = useState<boolean>(false);
@@ -366,11 +372,12 @@ const AyoApp: React.FC = () => {
     // Bottom row is always the viewer's side; Top row is opponent's side (reversed so counter-clockwise flows naturally!)
     const bottomIndices = flipPerspective ? [6, 7, 8, 9, 10, 11] : [0, 1, 2, 3, 4, 5];
     const topIndices = flipPerspective ? [5, 4, 3, 2, 1, 0] : [11, 10, 9, 8, 7, 6];
+    const isVertical = viewportW < 640;
     const topScore = flipPerspective ? scores[0] : scores[1];
     const bottomScore = flipPerspective ? scores[1] : scores[0];
 
     return (
-      <div className="w-full max-w-4xl mx-auto" style={{ perspective: is3D ? '1100px' : undefined }}>
+      <div className="w-full max-w-4xl mx-auto" style={{ perspective: is3D && !isVertical ? '1100px' : undefined }}>
         {/* Top Row Header */}
         <div className="flex items-center justify-between mb-2.5 px-2">
           <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold border-2 transition-all ${
@@ -389,7 +396,7 @@ const AyoApp: React.FC = () => {
           className="relative rounded-[2.2rem] p-4 sm:p-6 shadow-[0_28px_60px_rgba(0,0,0,0.65)] border-4 border-amber-500/80 transition-transform duration-500"
           style={{
             background: 'linear-gradient(155deg, #7c3a14 0%, #59260a 48%, #3e1905 100%)',
-            transform: is3D ? 'rotateX(14deg)' : 'none',
+            transform: is3D && !isVertical ? 'rotateX(14deg)' : 'none',
             transformStyle: 'preserve-3d',
           }}
         >
@@ -404,8 +411,10 @@ const AyoApp: React.FC = () => {
               const col = topIdx !== -1 ? topIdx : botIdx;
               if (col === -1) return null;
               const isTopRow = topIdx !== -1;
-              const leftPct = ((col + 0.5) / 6) * 100;
-              const topPct = isTopRow ? 24 : 76;
+              // Wide: pits run left to right along the row. Phone: the board is upright, the
+              // opponent's column is on the left and runs top to bottom in reverse index order.
+              const leftPct = isVertical ? (isTopRow ? 25 : 75) : ((col + 0.5) / 6) * 100;
+              const topPct = isVertical ? ((5 - col + 0.5) / 6) * 100 : (isTopRow ? 24 : 76);
               const glideDuration = sowPace === 'slow' ? 430 : sowPace === 'brisk' ? 180 : 320;
               const handTransform =
                 handPhase === 'scoop'
@@ -465,76 +474,78 @@ const AyoApp: React.FC = () => {
               );
             })()}
 
-          {/* Top Row (Opponent) */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-3.5 mb-3 sm:mb-4 relative z-10">
-            {topIndices.map((pitIdx) => {
+          {/* Pits: two rows on wide screens; on phones the board turns upright (two columns of six)
+              so the pits get big, easy tap targets. Seeds still travel counter-clockwise: up the
+              right-hand column (your pits), then down the left-hand column (opponent's pits). */}
+          {(() => {
+            const renderPit = (pitIdx: number, isTop: boolean) => {
               const count = pits[pitIdx];
+              const label = isTop ? topLabel : bottomLabel;
               const isLegal = canInteract && legalMoves.includes(pitIdx);
               const isActive = animatingPit === pitIdx;
               const isCaptured = capturedPits.includes(pitIdx);
+              const stateClass = isCaptured
+                ? 'bg-emerald-900 border-emerald-300 ring-4 ring-emerald-400 scale-105'
+                : isActive
+                  ? 'bg-amber-900 border-yellow-300 ring-4 ring-yellow-300 scale-105'
+                  : isLegal
+                    ? `bg-[#2c1104] ${isTop ? 'border-amber-400' : 'border-yellow-300'} hover:scale-105 hover:ring-4 hover:ring-yellow-300 cursor-pointer shadow-[inset_0_8px_18px_rgba(0,0,0,0.85)]`
+                    : `bg-[#2c1104] ${isTop ? 'border-amber-800/70' : 'border-amber-900/60 opacity-75'} cursor-default shadow-[inset_0_8px_18px_rgba(0,0,0,0.85)]`;
+              const badgePos = isTop ? '-top-2 -right-1' : '-bottom-2 -right-1';
+              const badgeColor = !isTop && isLegal
+                ? 'bg-yellow-400 text-slate-950 border-white'
+                : 'bg-slate-950 text-amber-200 border-amber-400/60';
               return (
                 <button
                   key={pitIdx}
                   type="button"
                   disabled={!isLegal}
                   onClick={() => isLegal && onPitClick(pitIdx)}
-                  aria-label={`${topLabel} pit ${(pitIdx % 6) + 1}, ${count} seeds${isLegal ? ', playable' : ''}`}
-                  className={`relative aspect-square rounded-full flex items-center justify-center transition-all duration-200 border-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 ${
-                    isCaptured
-                      ? 'bg-emerald-900 border-emerald-300 ring-4 ring-emerald-400 scale-105'
-                      : isActive
-                        ? 'bg-amber-900 border-yellow-300 ring-4 ring-yellow-300 scale-105'
-                        : isLegal
-                          ? 'bg-[#2c1104] border-amber-400 hover:scale-105 hover:ring-4 hover:ring-yellow-300 cursor-pointer shadow-[inset_0_8px_18px_rgba(0,0,0,0.85)]'
-                          : 'bg-[#2c1104] border-amber-800/70 cursor-default shadow-[inset_0_8px_18px_rgba(0,0,0,0.85)]'
-                  }`}
+                  aria-label={`${label} pit ${(pitIdx % 6) + 1}, ${count} seeds${isLegal ? ', playable' : ''}`}
+                  className={`relative aspect-square rounded-full flex items-center justify-center transition-all duration-200 border-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 ${isVertical ? 'w-full max-w-[92px] mx-auto' : ''} ${stateClass}`}
                 >
                   {renderSeeds(count)}
-                  <span className="absolute -top-2 -right-1 bg-slate-950 text-amber-200 border border-amber-400/60 font-display font-black text-xs sm:text-sm min-w-[26px] h-[26px] px-1.5 rounded-full flex items-center justify-center shadow tabular-nums">
+                  <span className={`absolute ${badgePos} border font-display font-black text-xs sm:text-sm min-w-[26px] h-[26px] px-1.5 rounded-full flex items-center justify-center shadow tabular-nums ${badgeColor}`}>
                     {count}
                   </span>
                 </button>
               );
-            })}
-          </div>
+            };
 
-          {/* Center Wood Divider */}
-          <div className="h-1.5 rounded-full bg-gradient-to-r from-amber-900 via-amber-400/50 to-amber-900 mb-3 sm:mb-4 opacity-70" />
-
-          {/* Bottom Row (Player) */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-3.5 relative z-10">
-            {bottomIndices.map((pitIdx) => {
-              const count = pits[pitIdx];
-              const isLegal = canInteract && legalMoves.includes(pitIdx);
-              const isActive = animatingPit === pitIdx;
-              const isCaptured = capturedPits.includes(pitIdx);
+            if (isVertical) {
+              const leftCol = [...topIndices].reverse();      // opponent, top to bottom
+              const rightCol = [...bottomIndices].reverse();  // you, top to bottom
               return (
-                <button
-                  key={pitIdx}
-                  type="button"
-                  disabled={!isLegal}
-                  onClick={() => isLegal && onPitClick(pitIdx)}
-                  aria-label={`${bottomLabel} pit ${(pitIdx % 6) + 1}, ${count} seeds${isLegal ? ', playable' : ''}`}
-                  className={`relative aspect-square rounded-full flex items-center justify-center transition-all duration-200 border-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 ${
-                    isCaptured
-                      ? 'bg-emerald-900 border-emerald-300 ring-4 ring-emerald-400 scale-105'
-                      : isActive
-                        ? 'bg-amber-900 border-yellow-300 ring-4 ring-yellow-300 scale-105'
-                        : isLegal
-                          ? 'bg-[#2c1104] border-yellow-300 hover:scale-105 hover:ring-4 hover:ring-yellow-300 cursor-pointer shadow-[inset_0_8px_18px_rgba(0,0,0,0.85)]'
-                          : 'bg-[#2c1104] border-amber-900/60 opacity-75 cursor-default shadow-[inset_0_8px_18px_rgba(0,0,0,0.85)]'
-                  }`}
-                >
-                  {renderSeeds(count)}
-                  <span className={`absolute -bottom-2 -right-1 border font-display font-black text-xs sm:text-sm min-w-[26px] h-[26px] px-1.5 rounded-full flex items-center justify-center shadow tabular-nums ${
-                    isLegal ? 'bg-yellow-400 text-slate-950 border-white' : 'bg-slate-950 text-amber-200 border-amber-400/60'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
+                <div className="relative">
+                  <div className="absolute left-1/2 top-0 bottom-0 w-1.5 -translate-x-1/2 rounded-full bg-gradient-to-b from-amber-900 via-amber-400/50 to-amber-900 opacity-70" />
+                  <div
+                    className="grid grid-cols-2 gap-x-6 gap-y-3 relative z-10"
+                    style={{ gridAutoFlow: 'column', gridTemplateRows: 'repeat(6, auto)' }}
+                  >
+                    {leftCol.map((i) => renderPit(i, true))}
+                    {rightCol.map((i) => renderPit(i, false))}
+                  </div>
+                </div>
               );
-            })}
-          </div>
+            }
+
+            return (
+              <>
+                {/* Top Row (Opponent) */}
+                <div className="grid grid-cols-6 gap-2 sm:gap-3.5 mb-3 sm:mb-4 relative z-10">
+                  {topIndices.map((i) => renderPit(i, true))}
+                </div>
+
+                {/* Center Wood Divider */}
+                <div className="h-1.5 rounded-full bg-gradient-to-r from-amber-900 via-amber-400/50 to-amber-900 mb-3 sm:mb-4 opacity-70" />
+
+                {/* Bottom Row (Player) */}
+                <div className="grid grid-cols-6 gap-2 sm:gap-3.5 relative z-10">
+                  {bottomIndices.map((i) => renderPit(i, false))}
+                </div>
+              </>
+            );
+          })()}
           </div>
         </div>
 

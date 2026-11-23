@@ -17,6 +17,21 @@ export interface Env {
 const getUtcDay = (): string => new Date().toISOString().slice(0, 10);
 const isValidDay = (d: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(d);
 
+// The raw guest ID doubles as the player's secret (it is the key for score updates and room seats),
+// so never send it to other clients. Leaderboard rows carry a one-way hash instead; the client
+// computes the same hash of its own ID to highlight "You" (see core/dailyLeaderboard.ts).
+const publicPlayerId = async (guestId: string): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(guestId));
+  return Array.from(new Uint8Array(digest).slice(0, 8), b => b.toString(16).padStart(2, '0')).join('');
+};
+
+// Scores may only be filed for today or the neighbouring UTC day (clock skew around midnight).
+const isAcceptableDay = (d: string): boolean => {
+  const t = Date.parse(`${d}T00:00:00Z`);
+  const today = Date.parse(`${getUtcDay()}T00:00:00Z`);
+  return Number.isFinite(t) && Math.abs(t - today) <= 86_400_000;
+};
+
 interface DailyScoreRow {
   guest_id: string;
   name: string;
@@ -40,13 +55,13 @@ const fetchTopScores = async (db: D1Database, day: string) => {
   return {
     day,
     total: Number(countRow?.total ?? 0),
-    entries: (results || []).map((row, i) => ({
+    entries: await Promise.all((results || []).map(async (row, i) => ({
       rank: i + 1,
-      guestId: row.guest_id,
+      playerId: await publicPlayerId(row.guest_id),
       name: row.name,
       durationMs: row.duration_ms,
       cardsPlayed: row.cards_played,
-    })),
+    }))),
   };
 };
 
@@ -62,12 +77,30 @@ const generateRoomCode = (): string => {
   return code;
 };
 
-const corsHeaders = (origin: string | null): Record<string, string> => ({
-  'Access-Control-Allow-Origin': origin || '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Vary': 'Origin',
-});
+// Only these browser origins may call the API. Requests with no Origin header
+// (curl, health checks, server-to-server) are unaffected by CORS.
+const ALLOWED_ORIGINS = new Set([
+  'https://jackattackstreets.com',
+  'https://www.jackattackstreets.com',
+  'https://btltech.github.io',
+]);
+
+const isAllowedOrigin = (origin: string | null): origin is string => {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  // Local development (vite dev server / preview / wrangler dev)
+  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+};
+
+const corsHeaders = (origin: string | null): Record<string, string> => {
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+  };
+  if (isAllowedOrigin(origin)) headers['Access-Control-Allow-Origin'] = origin;
+  return headers;
+};
 
 const jsonResponse = (body: unknown, status = 200, origin: string | null = null): Response =>
   new Response(JSON.stringify(body), {
@@ -112,7 +145,9 @@ export default {
         return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
       }
 
+      if (!body || typeof body !== 'object') return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
       const day = body.day && isValidDay(body.day) ? body.day : getUtcDay();
+      if (!isAcceptableDay(day)) return jsonResponse({ error: 'Invalid day' }, 400, origin);
       const guestId = String(body.guestId || '').trim().slice(0, 64);
       const name = cleanName(body.name);
       const durationMs = Math.floor(Number(body.durationMs));
@@ -173,6 +208,12 @@ export default {
         bestDurationMs: bestDuration,
         ...board,
       }, 200, origin);
+    }
+
+    // Browsers always send Origin on WebSocket upgrades: refuse other websites. Non-browser
+    // clients (no Origin header) are still allowed.
+    if (/\/ws$/.test(url.pathname) && origin && !isAllowedOrigin(origin)) {
+      return jsonResponse({ error: 'Origin not allowed' }, 403, origin);
     }
 
     // Create a new Ayò 1v1 room code
@@ -282,6 +323,10 @@ export class GameRoom extends DurableObject<Env> {
       const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
       msg = JSON.parse(text) as ClientMsg;
     } catch {
+      this.send(ws, { t: 'error', error: 'Invalid message' });
+      return;
+    }
+    if (!msg || typeof msg !== 'object') {
       this.send(ws, { t: 'error', error: 'Invalid message' });
       return;
     }
@@ -484,6 +529,7 @@ export class AyoRoom extends DurableObject<Env> {
     } catch {
       return;
     }
+    if (!msg || typeof msg !== 'object') return;
     if (msg.t === 'ping') { this.send(ws, { t: 'pong' }); return; }
 
     const att = (ws.deserializeAttachment() as SocketAttachment | null) || { id: null };

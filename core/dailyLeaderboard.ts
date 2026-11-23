@@ -3,7 +3,7 @@ import { ROOMS_API_BASE, getGuestId } from './online';
 
 export interface LeaderboardEntry {
   rank: number;
-  guestId: string;
+  playerId: string; // one-way hash of the guest ID (see getMyPlayerId); never the raw ID
   name: string;
   durationMs: number;
   cardsPlayed: number;
@@ -21,6 +21,12 @@ export interface DailyScoreSubmitResponse extends DailyLeaderboardResponse {
   rank: number;
   bestDurationMs: number;
 }
+
+// Must match publicPlayerId() in worker/src/index.ts: first 8 bytes of SHA-256(guestId), hex.
+export const getMyPlayerId = async (): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(getGuestId()));
+  return Array.from(new Uint8Array(digest).slice(0, 8), b => b.toString(16).padStart(2, '0')).join('');
+};
 
 export const getTodayUtcKey = (): string => new Date().toISOString().slice(0, 10);
 

@@ -4,7 +4,27 @@ let audioContext: AudioContext | null = null;
 let backgroundMusicInterval: number | null = null;
 let isMusicEnabled = false;
 
+// Sound setting, saved between visits: 'sfx' = effects only (default), 'music' = effects + lofi
+// music, 'off' = silent. Before this existed the speaker button only toggled the music, so the
+// sound effects could never be muted.
+export type SoundMode = 'sfx' | 'music' | 'off';
+const SOUND_MODE_KEY = 'jack-attack-sound-mode';
+
+const readSoundMode = (): SoundMode => {
+  try {
+    const v = localStorage.getItem(SOUND_MODE_KEY);
+    return v === 'music' || v === 'off' ? v : 'sfx';
+  } catch {
+    return 'sfx';
+  }
+};
+
+let soundMode: SoundMode = readSoundMode();
+
+export const getSoundMode = (): SoundMode => soundMode;
+
 const getAudioContext = (): AudioContext | null => {
+  if (soundMode === 'off') return null;
   try {
     if (!audioContext) {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -277,6 +297,22 @@ export const toggleBackgroundMusic = (): boolean => {
 
 export const isMusicPlaying = (): boolean => isMusicEnabled;
 
+export const setSoundMode = (mode: SoundMode): void => {
+  soundMode = mode;
+  try { localStorage.setItem(SOUND_MODE_KEY, mode); } catch { /* storage unavailable */ }
+  if (mode === 'music') startBackgroundMusic();
+  else stopBackgroundMusic();
+};
+
+// Effects only -> effects + music -> off -> effects only ...
+export const cycleSoundMode = (): SoundMode => {
+  const next: SoundMode = soundMode === 'sfx' ? 'music' : soundMode === 'music' ? 'off' : 'sfx';
+  setSoundMode(next);
+  return next;
+};
+
+// Call from a user gesture (browsers block audio until then): also restores saved music.
 export const initAudio = () => {
   getAudioContext();
+  if (soundMode === 'music' && !isMusicEnabled) startBackgroundMusic();
 };
