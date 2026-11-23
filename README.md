@@ -1,53 +1,45 @@
-# Jack Attack Street - Phase 1
+# Jack Attack Street
 
-Hi! I am your game dev tutor. I have set up the foundation for **Jack Attack Street** as you requested.
+Two browser games in one Vite + React + TypeScript project, live at https://jackattackstreets.com/
 
-## 1. The Plan & Tech Stack
-We are building the Phase 1 Web App using:
-- **React 18** for the UI.
-- **TypeScript** for type-safe code.
-- **Tailwind CSS** for easy styling.
-- **Core Logic Separation**: We have placed all game logic in a `core/` folder. This is pure TypeScript (no React), making it ready for your future React Native mobile app.
+- **Jack Attack Street**: a street card game with power-ups, daily challenges, a daily leaderboard, themes, and 1v1 online rooms.
+- **Ayò Ọlọ́pọ́n**: the Yoruba mancala-style board game, with relay sowing, 4-seed captures, a 3D carved board, wooden-seed audio, and 1v1 online rooms.
 
-## 2. Folder Structure
-Here is the clean structure I have created for you:
+## Project layout
 
 ```text
-/
-├── index.html        (The entry HTML file)
-├── index.tsx         (The React entry point - often 'main.tsx' in Vite)
-├── App.tsx           (The main screen of your app)
-├── core/             (ALL game logic lives here)
-│   ├── types.ts      (Definitions of Cards, Suits, Ranks)
-│   └── game.ts       (Logic to create and shuffle the deck)
-└── components/       (Reusable UI components will go here later)
+index.html, index.tsx, App.tsx   Home page and Jack Attack Street app
+jackattack/                      Jack Attack entry page
+core/                            Jack Attack game logic, sounds, themes, online client (no React)
+components/                      Jack Attack UI components
+ayo/, ayo-app/                   Ayò Ọlọ́pọ́n entry page, UI, engine, sounds, online client
+rules/, ayo-rules/               Static rules pages for each game
+public/                          Static assets
+scripts/og/                      SVG sources for Open Graph share images
+worker/                          Cloudflare Worker: online rooms (Durable Objects) + daily leaderboard (D1)
+.github/workflows/deploy.yml     Build and deploy to GitHub Pages on push to main
 ```
 
-## 3. Terminal Commands (for your local machine)
-If you were running this locally, you would run these commands:
+## Running locally
 
-1.  **Create the project:**
-    ```bash
-    npm create vite@latest jack-attack-street -- --template react-ts
-    cd jack-attack-street
-    ```
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm run build      # outputs to dist/
+npm run preview
+```
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+The client talks to the rooms API at `https://jack-attack-rooms.btltech.workers.dev` by default.
+Set `VITE_ROOMS_API_URL` to point it elsewhere (for example a local `wrangler dev`).
 
-3.  **Start the server:**
-    ```bash
-    npm run dev
-    ```
+## Worker
 
-*Note: In this environment, the code is already generated for you below.*
+```bash
+cd worker
+npx wrangler dev       # local
+npx wrangler deploy    # production
+```
 
-## 4. Next Steps implemented below
-I have created the first basic files for you:
-1.  **`core/types.ts`**: Defines what a `Card` is (Suit + Rank).
-2.  **`core/game.ts`**: Creates a standard 52-card deck and includes a shuffle function.
-3.  **`App.tsx`**: A simple screen to verify everything is working.
-
-Go ahead and explore the files!
+The Worker only sends CORS headers to an allow-list of origins (the production site, GitHub Pages,
+and `localhost` / `127.0.0.1` for development). To add another origin, edit `ALLOWED_ORIGINS` in
+`worker/src/index.ts`.

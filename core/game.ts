@@ -414,6 +414,23 @@ export const getBotDecision = (state: GameState, rules?: GameRuleFlags): { actio
     return { action: 'play', cardId: validMoves[randomIndex].id };
   }
 
+  // Medium and Hard bots never play a King that would hand them a bigger hand than they
+  // started with (the swap gives away their hand and takes the best opponent's). If every
+  // legal card is such a King, they draw instead (a King is never legal under a pickup penalty).
+  const kingWouldBackfire = (card: Card): boolean => {
+    if (card.rank !== Rank.King || rules?.enableSwap === false) return false;
+    if (bot.hand.length <= 1) return false; // last card wins before the swap applies
+    const smallestOpponent = Math.min(
+      ...state.players.filter(p => p.id !== bot.id).map(p => p.hand.length)
+    );
+    return smallestOpponent > bot.hand.length - 1;
+  };
+  const sensibleMoves = validMoves.filter(card => !kingWouldBackfire(card));
+  if (sensibleMoves.length === 0) {
+    return { action: 'draw' };
+  }
+  validMoves.splice(0, validMoves.length, ...sensibleMoves);
+
   // --- HARD MODE: Strategic play ---
   if (difficulty === Difficulty.Hard) {
     // Count cards in human's hand

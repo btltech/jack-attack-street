@@ -1,8 +1,12 @@
-// ayo-app/engine.ts - Authentic Ayò Ọlọ́pọ́n (Yorùbá Mancala) game engine + Alpha-Beta AI + Endgame Challenges
+// ayo-app/engine.ts - Ayò Ọlọ́pọ́n (Yorùbá Mancala) game engine: traditional Ayò, Street Ayò and Oware rule sets + Alpha-Beta AI + Endgame Challenges
 
 export type AyoPlayer = 0 | 1; // 0 = South (Ìsàlẹ̀ / Bottom, pits 0..5), 1 = North (Òkè / Top, pits 6..11)
 export type AyoDifficulty = 'easy' | 'medium' | 'hard';
-export type AyoRuleSet = 'yoruba_ayo' | 'oware';
+// 'yoruba_ayo'  Traditional Ayò (Ayoayo): relay sowing, and a final seed that lands in an empty pit on
+//               your own side captures the seeds in the pit opposite it.
+// 'street_ayo'  House variant: relay sowing plus an instant capture whenever any pit reaches 4 seeds.
+// 'oware'       Oware: single-lap sowing, capture runs of 2s and 3s on the opponent's row.
+export type AyoRuleSet = 'yoruba_ayo' | 'street_ayo' | 'oware';
 
 export interface AyoState {
   pits: number[];          // length 12: 0..5 belong to Player 0 (South), 6..11 belong to Player 1 (North)
@@ -123,6 +127,9 @@ export const AYO_CHALLENGES: AyoChallenge[] = [
   },
 ];
 
+// Hard cap on Oware / traditional Ayò game length (moves by both players) to end endless cycles.
+const OWARE_MAX_MOVES = 400;
+
 export const createAyoGame = (
   ruleSet: AyoRuleSet = 'yoruba_ayo',
   customPits?: number[],
@@ -208,9 +215,8 @@ export const applyAyoMove = (
     kind: 'scoop',
   });
 
-  if (state.ruleSet === 'yoruba_ayo') {
-    // AUTHENTIC NIGERIAN YORÙBÁ AYÒ ỌLỌ́PỌ́N:
-    // Counter-clockwise relay sowing + 4-seed captures!
+  if (state.ruleSet === 'street_ayo') {
+    // STREET AYÒ (house variant): counter-clockwise relay sowing + instant 4-seed captures.
     let safety = 0;
     const MAX_STEPS = 160;
     while (seeds > 0 && safety < MAX_STEPS) {
@@ -266,6 +272,98 @@ export const applyAyoMove = (
           }
         }
       }
+    }
+
+    // A relay that never settles (it hit MAX_STEPS) used to drop the seeds still in hand,
+    // so the board no longer held 48 seeds. Award them to the sowing player instead.
+    if (seeds > 0) {
+      scores[player] += seeds;
+      capturedTotal += seeds;
+      seeds = 0;
+      steps.push({
+        pits: [...pits],
+        scores: [scores[0], scores[1]],
+        activePit: idx,
+        seedsInHand: 0,
+        kind: 'drop',
+      });
+    }
+  } else if (state.ruleSet === 'yoruba_ayo') {
+    // TRADITIONAL AYÒ (Ayoayo, as documented on Wikipedia and in John Pratt's mancala notes):
+    //  - sow counter-clockwise, one seed per pit; the pit being sown from is skipped on every lap
+    //  - relay: if the last seed lands in a pit that already had seeds, lift them all and keep sowing
+    //  - the turn ends when the last seed lands in an empty pit; if that pit is on your own side and
+    //    the pit opposite it holds seeds, you capture those seeds (the last seed itself stays put)
+    let safety = 0;
+    const MAX_STEPS = 400;
+    let origin = pit;
+    while (seeds > 0 && safety < MAX_STEPS) {
+      safety++;
+      idx = (idx + 1) % 12;
+      if (idx === origin) idx = (idx + 1) % 12;
+      pits[idx]++;
+      seeds--;
+      steps.push({
+        pits: [...pits],
+        scores: [scores[0], scores[1]],
+        activePit: idx,
+        seedsInHand: seeds,
+        kind: 'drop',
+      });
+
+      if (seeds > 0) continue;
+
+      if (pits[idx] > 1) {
+        // Relay: lift everything from the pit we ended in and carry on
+        seeds = pits[idx];
+        pits[idx] = 0;
+        origin = idx;
+        steps.push({
+          pits: [...pits],
+          scores: [scores[0], scores[1]],
+          activePit: idx,
+          seedsInHand: seeds,
+          kind: 'scoop',
+        });
+        continue;
+      }
+
+      // Landed in an empty pit: the turn ends, with a capture if it is on our own side
+      if (isOwnPit(idx, player)) {
+        const opposite = 11 - idx;
+        if (pits[opposite] > 0) {
+          const taken = pits[opposite];
+          pits[opposite] = 0;
+          scores[player] += taken;
+          capturedTotal += taken;
+          steps.push({
+            pits: [...pits],
+            scores: [scores[0], scores[1]],
+            activePit: opposite,
+            seedsInHand: 0,
+            kind: 'capture',
+            capturedPits: [opposite],
+            capturedCount: taken,
+            capturedBy: player,
+          });
+        }
+      }
+      break;
+    }
+
+    // A relay that never settles (hit MAX_STEPS): award the seeds still in hand to the sower
+    // rather than letting them vanish from the board.
+    if (seeds > 0) {
+      scores[player] += seeds;
+      capturedTotal += seeds;
+      seeds = 0;
+      steps.push({
+        pits: [...pits],
+        scores: [scores[0], scores[1]],
+        activePit: idx,
+        seedsInHand: 0,
+        kind: 'drop',
+      });
     }
   } else {
     // OWARE / CLASSIC 2-OR-3 CAPTURE VARIANT:
@@ -339,7 +437,11 @@ export const applyAyoMove = (
     const nextLegal = getLegalMoves(probe);
     const totalOnBoard = sideSum(pits, 0) + sideSum(pits, 1);
 
-    if (nextLegal.length === 0 || totalOnBoard === 0 || (state.ruleSet === 'yoruba_ayo' && totalOnBoard <= 4)) {
+    // Oware and traditional Ayò can cycle forever; by convention a repeating endgame ends with each player
+    // keeping the seeds on their own side, so cap the game length.
+    const stalemate = state.ruleSet !== 'street_ayo' && state.moveCount + 1 >= OWARE_MAX_MOVES;
+
+    if (nextLegal.length === 0 || totalOnBoard === 0 || stalemate || (state.ruleSet === 'street_ayo' && totalOnBoard <= 4) || (state.ruleSet === 'yoruba_ayo' && totalOnBoard <= 2)) {
       scores[0] += sideSum(pits, 0);
       scores[1] += sideSum(pits, 1);
       for (let i = 0; i < 12; i++) pits[i] = 0;

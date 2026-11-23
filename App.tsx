@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createNewGame, isValidMove, playCard, drawCard, getBotDecision, sortHand, chooseSuit, swapWith, clearPeek, botChooseSuit, botChooseSwap, confirmPassScreen, triggerPassScreen, saveStateForUndo, undoLastMove } from './core/game';
 import { GameState, Card, Player, Suit, Rank, Difficulty, GameMode } from './core/types';
-import { playCardSound, playDrawSound, playShuffleSound, playAttackSound, playWinSound, playLoseSound, playClickSound, initAudio, toggleBackgroundMusic, isMusicPlaying, playPowerUpSound, playCoinsSound, playEncourageSound } from './core/sounds';
+import { playCardSound, playDrawSound, playShuffleSound, playAttackSound, playWinSound, playLoseSound, playClickSound, initAudio, cycleSoundMode, getSoundMode, playPowerUpSound, playCoinsSound, playEncourageSound } from './core/sounds';
+import type { SoundMode } from './core/sounds';
 import { getCommentary, getCommentaryForAction, Commentary, CommentaryType } from './core/commentary';
 import { PlayerStats, loadStats, saveStats, recordGame, migrateOldStats, getWinRate, formatDuration, getRank } from './core/stats';
 import SuitPicker from './components/SuitPicker';
@@ -88,7 +89,13 @@ const App: React.FC = () => {
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [showRules, setShowRules] = useState<boolean>(false);
   const [showLeaderboard, setShowLeaderboard] = useState<boolean>(false);
-  const [musicEnabled, setMusicEnabled] = useState<boolean>(false);
+  const [soundMode, setSoundModeState] = useState<SoundMode>(() => getSoundMode());
+  const [viewportW, setViewportW] = useState<number>(() => (typeof window === 'undefined' ? 1024 : window.innerWidth));
+  useEffect(() => {
+    const onResize = () => setViewportW(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [showTutorial, setShowTutorial] = useState<boolean>(false);
   const [showThemePicker, setShowThemePicker] = useState<boolean>(false);
   const [currentTheme, setCurrentThemeState] = useState<CardTheme>(getCurrentTheme());
@@ -420,7 +427,6 @@ const App: React.FC = () => {
     setCurrentCommentary({
       text: styledText || fallback.text,
       emoji: fallback.emoji,
-      type,
     });
     setCommentaryPosition(position);
   };
@@ -1369,6 +1375,10 @@ const App: React.FC = () => {
   const isLocalMP = gameState.gameMode === GameMode.LocalMultiplayer;
   const activeViewerIdx = isLocalMP ? gameState.currentPlayerIndex : 0;
   const humanPlayer = gameState.players[activeViewerIdx];
+  // Phones: show the hand as one overlapping row instead of wrapping onto several rows
+  // (which used to push the hand up over the draw pile).
+  const isNarrow = viewportW < 640;
+  const narrowStep = Math.max(26, Math.min(52, (viewportW - 32 - 96) / Math.max(1, humanPlayer.hand.length - 1)));
   const topCard = gameState.discardPile[gameState.discardPile.length - 1];
   const prevDiscardCards = gameState.discardPile.slice(-3, -1);
   const isPlayerTurn = isLocalMP ? !gameState.showPassScreen : gameState.currentPlayerIndex === 0;
@@ -1515,22 +1525,23 @@ const App: React.FC = () => {
       )}
 
       {/* TOP BAR */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-50 pointer-events-none">
+      <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex justify-between items-start z-50 pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2">
-          <div className="bg-black/30 backdrop-blur px-4 py-2 rounded-full text-white font-bold border border-white/20 flex items-center gap-2">
+          <div className="bg-black/30 backdrop-blur px-3 sm:px-4 py-2 rounded-full text-white font-bold border border-white/20 flex items-center gap-2" aria-label={gameState.direction === 1 ? 'Play direction: clockwise' : 'Play direction: reversed'}>
             <span className="text-xl">{gameState.direction === 1 ? '➡️' : '⬅️'}</span>
-            {gameState.direction === 1 ? 'Clockwise' : 'Reverse'}
+            <span className="hidden sm:inline">{gameState.direction === 1 ? 'Clockwise' : 'Reverse'}</span>
           </div>
           <button
-            onClick={() => {
-              toggleBackgroundMusic();
-              setMusicEnabled(!musicEnabled);
-            }}
-            className={`backdrop-blur px-3 py-2 rounded-full font-bold border transition-all text-xl ${musicEnabled ? 'bg-green-500/50 border-green-400' : 'bg-black/30 border-white/20'}`}
-            title="Toggle commentary & sound"
-            aria-label={musicEnabled ? 'Sound enabled - click to mute' : 'Sound muted - click to enable'}
+            onClick={() => setSoundModeState(cycleSoundMode())}
+            className={`backdrop-blur px-3 py-2 rounded-full font-bold border transition-all text-xl ${soundMode === 'off' ? 'bg-black/30 border-white/20' : 'bg-green-500/50 border-green-400'}`}
+            title="Sound: effects → effects + music → off"
+            aria-label={
+              soundMode === 'sfx' ? 'Sound effects on - click to add music'
+                : soundMode === 'music' ? 'Sound effects and music on - click to mute'
+                : 'Sound muted - click to enable sound effects'
+            }
           >
-            {musicEnabled ? '🔊' : '🔇'}
+            {soundMode === 'sfx' ? '🔊' : soundMode === 'music' ? '🎵' : '🔇'}
           </button>
           <button
             onClick={() => setHintsEnabled(!hintsEnabled)}
@@ -1542,7 +1553,7 @@ const App: React.FC = () => {
             💡
           </button>
         </div>
-        <button onClick={() => setView('menu')} className="pointer-events-auto bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-full border-b-4 border-red-700 active:border-b-0 active:translate-y-1 transition-all">EXIT</button>
+        <button onClick={() => setView('menu')} className="pointer-events-auto bg-red-500 hover:bg-red-600 text-white font-bold px-3 sm:px-4 py-2 rounded-full border-b-4 border-red-700 active:border-b-0 active:translate-y-1 transition-all">EXIT</button>
       </div>
 
       {/* HAND HINTS */}
@@ -1558,7 +1569,7 @@ const App: React.FC = () => {
       {/* CENTER TABLE */}
       <div className="absolute inset-0 flex items-center justify-center">
         {/* Game Status Banner */}
-        <div aria-live="polite" className="absolute top-[19%] md:top-[25%] z-0 w-full text-center pointer-events-none">
+        <div aria-live="polite" className="absolute top-[26%] md:top-[25%] z-0 w-full text-center pointer-events-none">
           <span className="inline-block bg-slate-950/80 text-white px-6 py-2 rounded-full text-sm md:text-lg font-bold backdrop-blur-md border border-white/25 shadow-lg max-w-[90%] truncate">
             {gameState.lastAction}
           </span>
@@ -1623,9 +1634,10 @@ const App: React.FC = () => {
         const isCurrentTurn = gameState.players[gameState.currentPlayerIndex].id === p.id;
 
         let containerClass = "absolute flex flex-col items-center p-2 transition-all duration-300 z-20 ";
-        if (position === 'top') containerClass += "top-4 left-1/2 -translate-x-1/2";
-        if (position === 'left') containerClass += "left-2 top-[40%] md:top-1/2 -translate-y-1/2 origin-left scale-90";
-        if (position === 'right') containerClass += "right-2 top-[40%] md:top-1/2 -translate-y-1/2 origin-right scale-90";
+        if (position === 'top') containerClass += "top-[4.25rem] sm:top-4 left-1/2 -translate-x-1/2";
+        // On phones the side opponents sit beside the top opponent (instead of over the piles).
+        if (position === 'left') containerClass += isNarrow ? "left-1 top-[4.25rem] origin-top-left scale-75" : "left-2 top-[40%] md:top-1/2 -translate-y-1/2 origin-left scale-90";
+        if (position === 'right') containerClass += isNarrow ? "right-1 top-[4.25rem] origin-top-right scale-75" : "right-2 top-[40%] md:top-1/2 -translate-y-1/2 origin-right scale-90";
 
         return (
           <div key={p.id} ref={el => { botRefs.current[idx] = el }} className={containerClass}>
@@ -1703,7 +1715,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Cards Container (Curved Fan Arc + Iconic Power Cards) */}
-        <div className={`flex flex-wrap justify-center ${humanPlayer.hand.length > 9 ? '-space-x-7 md:-space-x-9' : '-space-x-4 md:-space-x-6'} px-4 w-full max-w-5xl pb-4 min-h-[145px] items-end`}>
+        <div className={`flex ${isNarrow ? 'flex-nowrap px-4' : `flex-wrap ${humanPlayer.hand.length > 9 ? '-space-x-7 md:-space-x-9' : '-space-x-4 md:-space-x-6'} px-4`} justify-center w-full max-w-5xl pb-4 min-h-[145px] items-end`}>
           {humanPlayer.hand.map((card, i) => {
             const canStack = mustPickup && isValidMove(card, topCard, gameState.pendingPickup, gameState.chosenSuit, activeRules);
             const normalPlay = !mustPickup && isPlayerTurn && isValidMove(card, topCard, 0, gameState.chosenSuit, activeRules);
@@ -1726,6 +1738,7 @@ const App: React.FC = () => {
                 onClick={(e) => handleCardClick(e, card)}
                 style={{
                   marginBottom: `${(playable ? 22 : 0) + arcLift}px`,
+                  ...(isNarrow && i > 0 ? { marginLeft: `-${96 - narrowStep}px` } : {}),
                   zIndex: i,
                   transform: `rotate(${offset * (humanPlayer.hand.length > 9 ? 1.2 : 2)}deg)`,
                 }}

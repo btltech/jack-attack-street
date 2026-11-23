@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 import {
   fetchDailyLeaderboard,
   getTodayUtcKey,
+  getMyPlayerId,
   DailyLeaderboardResponse,
 } from '../core/dailyLeaderboard';
-import { getGuestId, loadNickname, saveNickname } from '../core/online';
+import { loadNickname, saveNickname } from '../core/online';
 import { formatDuration } from '../core/stats';
 import { playClickSound } from '../core/sounds';
 
@@ -19,11 +20,15 @@ const DailyLeaderboardModal: React.FC<DailyLeaderboardModalProps> = ({
   onPlayDailySeed,
 }) => {
   const today = getTodayUtcKey();
-  const myGuestId = getGuestId();
+  const [myPlayerId, setMyPlayerId] = useState<string>('');
   const [board, setBoard] = useState<DailyLeaderboardResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [nickname, setNickname] = useState<string>(() => loadNickname());
+
+  useEffect(() => {
+    getMyPlayerId().then(setMyPlayerId).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -107,11 +112,11 @@ const DailyLeaderboardModal: React.FC<DailyLeaderboardModalProps> = ({
           ) : (
             <div className="space-y-1.5">
               {board.entries.map((entry) => {
-                const isMe = entry.guestId === myGuestId;
+                const isMe = entry.playerId === myPlayerId;
                 const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`;
                 return (
                   <div
-                    key={entry.guestId}
+                    key={entry.playerId}
                     className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm ${
                       isMe ? 'bg-yellow-400/25 border border-yellow-400/60' : 'bg-white/5'
                     }`}
