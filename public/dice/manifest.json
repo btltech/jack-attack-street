@@ -1,0 +1,20 @@
+{
+  "id": "/dice/",
+  "name": "Street Dice",
+  "short_name": "Street Dice",
+  "description": "A free 60-second daily dice game. Push your luck, bank before it busts.",
+  "start_url": "/dice/?source=pwa",
+  "scope": "/dice/",
+  "display": "standalone",
+  "background_color": "#1c0509",
+  "theme_color": "#4c0519",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/dice/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/dice/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/dice/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "categories": ["games", "entertainment"],
+  "lang": "en",
+  "dir": "ltr"
+}

@@ -10,9 +10,11 @@ Two browser games in one Vite + React + TypeScript project, live at https://jack
 ```text
 index.html, index.tsx, App.tsx   Home page and Jack Attack Street app
 jackattack/                      Jack Attack entry page
-core/                            Jack Attack game logic, sounds, themes, online client (no React)
+core/                            Jack Attack game logic, sounds, themes, online client (no React);
+                                 diceEngine.ts is shared by Street Dice and the Worker
 components/                      Jack Attack UI components
 ayo/, ayo-app/                   Ayò Ọlọ́pọ́n entry page, UI, engine, sounds, online client
+dice/, dice-app/                 Street Dice: daily push-your-luck dice game (page, UI, sounds, leaderboard client)
 rules/, ayo-rules/               Static rules pages for each game
 public/                          Static assets
 scripts/og/                      SVG sources for Open Graph share images
@@ -43,6 +45,15 @@ npx wrangler deploy    # production
 The Worker only sends CORS headers to an allow-list of origins (the production site, GitHub Pages,
 and `localhost` / `127.0.0.1` for development). To add another origin, edit `ALLOWED_ORIGINS` in
 `worker/src/index.ts`.
+
+## Street Dice
+
+A 60-second daily game: five rounds, roll two dice, bank before a 1 busts the pot. Everyone gets the same
+rolls each UTC day (`core/diceEngine.ts`, seeded from the date), and only a player's first game of the day is
+scored. The browser sends its per-round choices (rolls taken, banked or busted) to `POST /api/dice/score`; the Worker
+replays them against that day's rolls and rejects anything impossible, so scores can't be forged by editing a number.
+(The rolls themselves are derivable from the source, as with any client-side daily.) `npm run test:dice` checks the
+engine and prints how different banking thresholds score. Art: `python3 scripts/dice-art.py`.
 
 ## Usage analytics
 

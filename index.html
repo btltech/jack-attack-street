@@ -36,7 +36,7 @@
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        "name": "Classic Street Games — Jack Attack Street & Ayò Ọlọ́pọ́n",
+        "name": "Classic Street Games — Jack Attack Street, Ayò Ọlọ́pọ́n & Street Dice",
         "url": "https://www.jackattackstreets.com/",
         "description": "Free browser-based street card and board games including Jack Attack Street and Ayò Ọlọ́pọ́n Yorùbá Mancala."
       }
@@ -251,8 +251,12 @@
       /* Game Showcase Grid */
       .games-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 24px;
+      }
+      @media (max-width: 1000px) {
+        .games-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .game-card-wide { grid-column: 1 / -1; }
       }
 
       .game-card {
@@ -295,6 +299,44 @@
           radial-gradient(circle at 50% 60%, rgba(217, 119, 6, 0.2), transparent 65%),
           linear-gradient(160deg, #27160b 0%, #140c07 100%);
       }
+
+      .stage-dice {
+        background:
+          radial-gradient(circle at 50% 60%, rgba(244, 63, 94, 0.22), transparent 65%),
+          linear-gradient(160deg, #2a0a14 0%, #14050a 100%);
+      }
+      .new-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        padding: 3px 10px;
+        border-radius: 50px;
+        background: #fbbf24;
+        color: #1a1205;
+        font: 800 0.72rem/1.4 'Outfit', sans-serif;
+        letter-spacing: 0.06em;
+      }
+
+      /* Mini Dice Artwork */
+      .mini-dice { display: flex; gap: 16px; align-items: center; }
+      .mini-die {
+        width: 74px;
+        height: 74px;
+        border-radius: 16px;
+        background: linear-gradient(145deg, #ffffff, #e2e8f0);
+        box-shadow: 0 7px 0 #94a3b8, 0 16px 26px rgba(0, 0, 0, 0.5);
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        padding: 11px;
+        transition: transform 0.25s ease;
+      }
+      .mini-die i { width: 11px; height: 11px; border-radius: 50%; background: #0f172a; place-self: center; }
+      .mini-die i.r { background: #dc2626; }
+      .mini-die.d1 { transform: rotate(-9deg); }
+      .mini-die.d2 { transform: rotate(8deg) translateY(6px); }
+      .game-card:hover .mini-die.d1 { transform: rotate(-16deg) translateY(-5px); }
+      .game-card:hover .mini-die.d2 { transform: rotate(14deg) translateY(1px); }
 
       /* Mini Playing Cards Artwork */
       .mini-fan {
@@ -543,6 +585,31 @@
               <div class="card-footer">
                 <span class="card-cta">Play Ayò Ọlọ́pọ́n →</span>
                 <span class="card-tag">Solo · Pass &amp; Play · Online 1v1</span>
+              </div>
+            </div>
+          </a>
+
+          <a href="/dice/" class="game-card game-card-wide">
+            <div class="card-stage stage-dice" aria-hidden="true">
+              <span class="new-badge">NEW · DAILY</span>
+              <div class="mini-dice">
+                <div class="mini-die d1">
+                  <i style="grid-area:1/1"></i><i style="grid-area:1/3"></i><i style="grid-area:2/2"></i><i style="grid-area:3/1"></i><i style="grid-area:3/3"></i>
+                </div>
+                <div class="mini-die d2">
+                  <i style="grid-area:1/1"></i><i style="grid-area:1/3"></i><i style="grid-area:2/1"></i><i style="grid-area:2/3"></i><i style="grid-area:3/1"></i><i style="grid-area:3/3"></i>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="card-meta">60-Second Daily · Same Rolls For Everyone</div>
+              <h2 class="card-title">Street Dice</h2>
+              <p class="card-desc">
+                Push your luck for five rounds. Bank your pot before a 1 busts it. One game a day, a shared leaderboard, and a score worth sending to a friend.
+              </p>
+              <div class="card-footer">
+                <span class="card-cta">Play Street Dice →</span>
+                <span class="card-tag">Solo · Daily · Leaderboard</span>
               </div>
             </div>
           </a>

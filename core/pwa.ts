@@ -117,7 +117,7 @@ const streakState = () => {
     const s = getDailyStatus(g);
     return { streak: s.streak, lastWinDay: s.lastWinDay };
   };
-  return { jack: one('jack'), ayo: one('ayo') };
+  return { jack: one('jack'), ayo: one('ayo'), dice: one('dice') };
 };
 
 const post = async (path: string, body: unknown): Promise<boolean> => {

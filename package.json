@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p .",
-    "stats": "node scripts/analytics-report.mjs"
+    "stats": "node scripts/analytics-report.mjs",
+    "test:dice": "node scripts/dice-selftest.mjs"
   },
   "dependencies": {
     "react": "^19.2.1",
