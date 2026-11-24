@@ -1166,11 +1166,13 @@ const AyoApp: React.FC = () => {
                 ))}
               </div>
             )}
-            <div className="bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-950 border-4 border-amber-400 rounded-[2.2rem] p-7 sm:p-8 max-w-md w-full text-center shadow-2xl">
-              <div className="text-7xl mb-3 animate-bounce">
+            <div className="bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-950 border-4 border-amber-400 rounded-[2.2rem] p-7 sm:p-8 lg:px-12 lg:py-10 max-w-md lg:max-w-4xl w-full text-center shadow-2xl lg:grid lg:grid-cols-2 lg:gap-x-12 lg:gap-y-5 lg:items-center">
+              {/* Desktop: headline and buttons on the left, score and daily results on the right. */}
+              <div className="lg:col-start-1 lg:row-start-1 lg:self-end">
+              <div className="text-7xl lg:text-8xl mb-3 animate-bounce">
                 {isPassAndPlay ? '🏆' : humanWon ? '🏆' : gameState.winner === 'draw' ? '🤝' : closeMatch ? '🤝' : '🙌'}
               </div>
-              <h2 className="font-display text-4xl sm:text-5xl font-black text-amber-300 mb-2">
+              <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-black text-amber-300 mb-2">
                 {isPassAndPlay
                   ? (gameState.winner === 0 ? 'SOUTH WINS!' : gameState.winner === 1 ? 'NORTH WINS!' : 'NOBLE DRAW!')
                   : humanWon
@@ -1181,10 +1183,12 @@ const AyoApp: React.FC = () => {
                         ? 'SO CLOSE!'
                         : 'GOOD GAME!'}
               </h2>
-              <p className="text-base font-bold text-emerald-100 mb-3">
+              <p className="text-base lg:text-xl font-bold text-emerald-100 mb-3">
                 Final Score: <span className="text-amber-300 font-black tabular-nums">{gameState.scores[0]} – {gameState.scores[1]}</span>
               </p>
-              <p className="text-xs italic text-emerald-200/90 bg-black/30 rounded-xl px-3.5 py-2.5 mb-4 border border-white/10">
+              </div>
+              <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2">
+              <p className="text-xs lg:text-sm italic text-emerald-200/90 bg-black/30 rounded-xl px-3.5 py-2.5 mb-4 border border-white/10">
                 {opponent.proverb}
               </p>
 
@@ -1213,7 +1217,9 @@ const AyoApp: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-2.5 justify-center">
+              </div>
+
+              <div className="flex flex-wrap gap-2.5 justify-center lg:col-start-1 lg:row-start-2 lg:self-start">
                 <button onClick={() => setScreen('lobby')} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-5 rounded-full border-b-4 border-slate-900">
                   Menu
                 </button>
