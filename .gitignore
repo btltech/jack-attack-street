@@ -26,3 +26,8 @@ dist-ssr
 # Cloudflare local dev state
 .wrangler/
 worker/.wrangler/
+
+# Local secrets (VAPID private key)
+.secrets/
+.dev.vars
+worker/.dev.vars

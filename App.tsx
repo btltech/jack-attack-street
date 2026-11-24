@@ -26,6 +26,8 @@ import { getDailySeed, getTodayUtcKey, submitDailyScore } from './core/dailyLead
 import { recordDailyWin, dailyNumber, streakLabel } from './core/daily';
 import { track, trackOpen } from './core/analytics';
 import DailyStreakBadge from './components/DailyStreakBadge';
+import StreakReminder from './components/StreakReminder';
+import { syncReminders } from './core/pwa';
 import { getTodaysChallenge, getDailyProgress, checkChallengeCompletion } from './core/challenges';
 import { getCurrentTheme, CardTheme, unlockTheme, isThemeUnlocked } from './core/themes';
 import { loadInventory, usePowerUp, powerUpCatalog, PowerUpInventory } from './core/powerups';
@@ -212,6 +214,7 @@ const App: React.FC = () => {
     migrateOldStats();
     setStats(loadStats());
     trackOpen('jack');
+    void syncReminders();
   }, []);
 
   // Update stats after game completion
@@ -226,6 +229,7 @@ const App: React.FC = () => {
       // Streak is saved on this device straight away, so it counts even if the score upload fails.
       const streakRes = recordDailyWin('jack', today);
       setDailyStreakInfo({ streak: streakRes.streak, firstWinToday: streakRes.firstWinToday });
+      void syncReminders(); // the reminder server learns the new streak
       setDailyStreakVersion((v) => v + 1);
       submitDailyScore({
         day: today,
@@ -1066,6 +1070,7 @@ const App: React.FC = () => {
                 </div>
 
                 <DailyStreakBadge game="jack" refreshKey={dailyStreakVersion} />
+                <StreakReminder game="jack" context="menu" refreshKey={dailyStreakVersion} className="mt-2" />
 
                 {stats && (
                   <DailyChallenge
@@ -1325,6 +1330,7 @@ const App: React.FC = () => {
                 </div>
               )}
               <DailyStreakBadge game="jack" refreshKey={dailyStreakVersion} />
+              {isHumanWinner && <StreakReminder game="jack" context="win" refreshKey={dailyStreakVersion} className="mt-2" />}
             </div>
           )}
 

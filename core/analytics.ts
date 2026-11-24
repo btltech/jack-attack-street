@@ -19,7 +19,12 @@ export type AnalyticsEvent =
   | 'tutorial_start'
   | 'tutorial_step'
   | 'tutorial_done'
-  | 'tutorial_skip';
+  | 'tutorial_skip'
+  | 'install_accept'
+  | 'install_dismiss'
+  | 'reminder_on'
+  | 'reminder_off'
+  | 'reminder_denied';
 
 const ANON_KEY = 'ja-anon-v1';
 const FIRST_SEEN_KEY = 'ja-first-seen-v1';
@@ -82,5 +87,11 @@ const opened = new Set<string>();
 export const trackOpen = (game: AnalyticsGame): void => {
   if (opened.has(game)) return;
   opened.add(game);
-  track('app_open', game);
+  // How the visit started: from a streak reminder, from the installed app, or a normal tab.
+  let how = '';
+  try {
+    if (new URLSearchParams(window.location.search).get('source') === 'push') how = 'push';
+    else if (window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone) how = 'pwa';
+  } catch { /* ignore */ }
+  track('app_open', game, how);
 };

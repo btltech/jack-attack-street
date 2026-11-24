@@ -16,6 +16,8 @@ import { loadNickname, saveNickname } from '../core/online';
 import { track, trackOpen } from '../core/analytics';
 import { recordDailyWin, getDailyStatus, utcDay, dailyNumber, shareOrCopy, streakLabel } from '../core/daily';
 import DailyStreakBadge from '../components/DailyStreakBadge';
+import StreakReminder from '../components/StreakReminder';
+import { syncReminders } from '../core/pwa';
 import AyoTutorial, { hasSeenTutorial } from './AyoTutorial';
 
 interface AyoProfile {
@@ -110,6 +112,7 @@ const AyoApp: React.FC = () => {
   // Deep-link ?room=XXXX check
   useEffect(() => {
     trackOpen('ayo');
+    void syncReminders();
     const params = new URLSearchParams(window.location.search);
     const code = params.get('room')?.trim().toUpperCase();
     if (code && /^[A-Z0-9]{4,6}$/.test(code)) {
@@ -299,6 +302,7 @@ const AyoApp: React.FC = () => {
         if (activeChallenge?.daily && activeChallenge.day && nextState.winner === 0) {
           track('daily_win', 'ayo');
           const res = recordDailyWin('ayo', activeChallenge.day);
+          void syncReminders();
           setDailyResult({ streak: res.streak, firstWinToday: res.firstWinToday });
           setDailyStreakVersion((v) => v + 1);
         }
@@ -1086,6 +1090,7 @@ const AyoApp: React.FC = () => {
                     </div>
                   )}
                   <DailyStreakBadge game="ayo" refreshKey={dailyStreakVersion} />
+                  {humanWon && <StreakReminder game="ayo" context="win" refreshKey={dailyStreakVersion} />}
                 </div>
               )}
 
@@ -1198,6 +1203,7 @@ const AyoApp: React.FC = () => {
                 </button>
               </div>
               <DailyStreakBadge game="ayo" refreshKey={dailyStreakVersion} className="mt-2 !py-1.5" />
+              <StreakReminder game="ayo" context="menu" refreshKey={dailyStreakVersion} className="mt-2" />
             </div>
 
             {/* Mode Tabs */}

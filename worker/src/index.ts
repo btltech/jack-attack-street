@@ -5,10 +5,14 @@ import {
   newRoom, join, disconnect, start, act, tick, view, cleanName,
 } from '../../core/roomEngine';
 import {
+  PushEnv, PushBody, subscribe as pushSubscribe, sync as pushSync, unsubscribe as pushUnsubscribe,
+  messageFor as pushMessageFor, sendDueReminders,
+} from './push';
+import {
   AyoState, AyoRuleSet, createAyoGame, applyAyoMove, getLegalMoves,
 } from '../../ayo-app/engine';
 
-export interface Env {
+export interface Env extends PushEnv {
   ROOMS: DurableObjectNamespace<GameRoom>;
   AYO_ROOMS: DurableObjectNamespace<AyoRoom>;
   DB: D1Database;
@@ -36,6 +40,7 @@ const isAcceptableDay = (d: string): boolean => {
 const ALLOWED_EVENTS = new Set([
   'app_open', 'game_start', 'game_end', 'daily_start', 'daily_win', 'share',
   'tutorial_start', 'tutorial_step', 'tutorial_done', 'tutorial_skip',
+  'install_accept', 'install_dismiss', 'reminder_on', 'reminder_off', 'reminder_denied',
 ]);
 const ALLOWED_GAMES = new Set(['jack', 'ayo', 'site']);
 
@@ -267,6 +272,33 @@ export default {
       return new Response(null, { status: 204 });
     }
 
+    // Streak reminders (see push.ts). Subscribe/sync/unsubscribe come from the app, `message` from the service worker.
+    const pushMatch = url.pathname.match(/^\/api\/push\/(subscribe|sync|unsubscribe|message)$/);
+    if (pushMatch && request.method === 'POST') {
+      if (origin && !isAllowedOrigin(origin)) return new Response(null, { status: 403 });
+      let body: PushBody;
+      try {
+        body = (await request.json()) as PushBody;
+      } catch {
+        return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
+      }
+      if (!body || typeof body !== 'object') return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
+      switch (pushMatch[1]) {
+        case 'subscribe': {
+          const r = await pushSubscribe(env, body);
+          return jsonResponse(r, r.ok ? 200 : 400, origin);
+        }
+        case 'sync': {
+          const r = await pushSync(env, body);
+          return jsonResponse(r, r.ok ? 200 : 400, origin);
+        }
+        case 'unsubscribe':
+          return jsonResponse(await pushUnsubscribe(env, body), 200, origin);
+        default:
+          return jsonResponse(await pushMessageFor(env, body), 200, origin);
+      }
+    }
+
     // Browsers always send Origin on WebSocket upgrades: refuse other websites. Non-browser
     // clients (no Origin header) are still allowed.
     if (/\/ws$/.test(url.pathname) && origin && !isAllowedOrigin(origin)) {
@@ -308,6 +340,11 @@ export default {
     }
 
     return jsonResponse({ error: 'Not found' }, 404, origin);
+  },
+
+  // Cron (every 10 minutes): send due streak reminders.
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(sendDueReminders(env).then(() => undefined, () => undefined));
   },
 };
 
