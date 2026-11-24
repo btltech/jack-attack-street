@@ -208,11 +208,12 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-900 flex flex-col items-center justify-center text-white font-sans p-4 text-center">
-        <div className="bg-white/10 p-8 sm:p-10 rounded-[2.5rem] border-4 border-white/20 backdrop-blur-md shadow-2xl max-w-md w-full">
-          <div className="text-7xl sm:text-8xl mb-3 animate-bounce">
+        <div className="bg-white/10 p-8 sm:p-10 lg:px-14 lg:py-12 rounded-[2.5rem] border-4 border-white/20 backdrop-blur-md shadow-2xl max-w-md lg:max-w-5xl w-full lg:grid lg:grid-cols-2 lg:gap-x-14 lg:gap-y-6 lg:items-center">
+          <div className="lg:col-start-1 lg:row-start-1 lg:self-end">
+          <div className="text-7xl sm:text-8xl lg:text-9xl mb-3 animate-bounce">
             {isMeWinner ? '🏆' : (view.seats[mySeat]?.handCount ?? 9) <= 2 ? '🤝' : '🙌'}
           </div>
-          <h1 className="font-display text-5xl sm:text-6xl font-black mb-2 text-yellow-400">
+          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-black mb-2 text-yellow-400">
             {isMeWinner ? 'YOU WON!' : (view.seats[mySeat]?.handCount ?? 9) <= 2 ? 'SO CLOSE!' : 'GOOD GAME!'}
           </h1>
           <p className="text-lg sm:text-xl font-bold mb-5 text-pink-100">
@@ -220,9 +221,10 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
               ? "You're the King of the Street!"
               : `${winner?.avatar || '🃏'} ${winner?.name || 'Opponent'} took this one — run it back!`}
           </p>
+          </div>
 
           {/* Session Scoreboard */}
-          <div className="bg-black/25 rounded-2xl p-3.5 mb-6 border border-white/15">
+          <div className="bg-black/25 rounded-2xl p-3.5 mb-6 lg:mb-0 lg:p-6 border border-white/15 lg:col-start-2 lg:row-start-1 lg:row-span-2">
             <div className="text-xs font-extrabold uppercase tracking-wider text-purple-200 mb-2">
               Room {view.code} Scoreboard
             </div>
@@ -240,7 +242,7 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center lg:col-start-1 lg:row-start-2 lg:self-start">
             <button
               onClick={() => { playClickSound(); onLeave(); }}
               className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-full border-b-4 border-gray-800"

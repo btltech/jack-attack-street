@@ -1294,11 +1294,13 @@ const App: React.FC = () => {
         {/* Confetti on win */}
         {showConfetti && <ConfettiEffect />}
 
-        <div className="bg-white/10 p-8 sm:p-10 rounded-[2.5rem] border-4 border-white/20 backdrop-blur-md shadow-2xl max-w-md w-full">
-          <div className="text-7xl sm:text-8xl mb-4 filter drop-shadow-lg animate-bounce">
+        <div className="bg-white/10 p-8 sm:p-10 lg:px-14 lg:py-12 rounded-[2.5rem] border-4 border-white/20 backdrop-blur-md shadow-2xl max-w-md lg:max-w-5xl w-full lg:grid lg:grid-cols-2 lg:gap-x-14 lg:gap-y-6 lg:items-center">
+          {/* Desktop: headline on the left, results on the right. Phones keep one column in this order. */}
+          <div className="lg:col-start-1 lg:row-start-1 lg:self-end">
+          <div className="text-7xl sm:text-8xl lg:text-9xl mb-4 filter drop-shadow-lg animate-bounce">
             {isHumanWinner ? '🏆' : humanPlayer.hand.length <= 2 ? '🤝' : '🙌'}
           </div>
-          <h1 className="font-display text-5xl sm:text-6xl font-black mb-3 drop-shadow-lg text-yellow-400">
+          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-black mb-3 drop-shadow-lg text-yellow-400">
             {isLocalMP
               ? `${winner?.name?.toUpperCase() || 'PLAYER'} WON!`
               : isHumanWinner
@@ -1314,7 +1316,9 @@ const App: React.FC = () => {
                 ? `${winner?.avatar} ${winner?.name} barely edged it — you were right there!`
                 : `Great battle against ${winner?.avatar} ${winner?.name}! Every round makes you sharper.`}
           </p>
+          </div>
 
+          <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:text-left">
           {isDailySeedRun && (
             <div className="mb-4 space-y-2">
               {isHumanWinner && dailyStreakInfo && (
@@ -1341,7 +1345,7 @@ const App: React.FC = () => {
           )}
 
           {/* Match Summary */}
-          <div className="flex justify-center gap-2.5 mb-5 text-sm flex-wrap">
+          <div className="flex justify-center lg:justify-start gap-2.5 mb-5 text-sm flex-wrap">
             <div className="bg-black/25 px-3.5 py-2 rounded-xl border border-white/15">
               <div className="text-purple-200 text-[11px] uppercase font-bold">Time</div>
               <div className="font-display font-black text-base tabular-nums">{formatDuration(lastMatchDurationMs)}</div>
@@ -1396,8 +1400,9 @@ const App: React.FC = () => {
               </div>
             );
           })()}
+          </div>
 
-          <div className="flex flex-wrap gap-3 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center lg:col-start-1 lg:row-start-2 lg:self-start">
             <button onClick={() => setView('menu')} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-full border-b-4 border-gray-800 transition-transform active:border-b-0 active:translate-y-1">Menu</button>
             <button onClick={handleShareResult} className="bg-purple-500 hover:bg-purple-400 text-white font-bold py-3 px-6 rounded-full border-b-4 border-purple-700 transition-transform active:border-b-0 active:translate-y-1">
               {shareCopied ? '✓ Copied!' : '📤 Share'}
