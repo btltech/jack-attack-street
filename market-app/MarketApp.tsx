@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { track, trackOpen } from '../core/analytics';
+import { dailyNumber, shareOrCopy } from '../core/daily';
 import { bestDeal, letters, makeRounds, money, objectiveLabel, score, settle, utcDate } from './engine';
 import type { Deal, Round } from './engine';
 
@@ -89,6 +91,8 @@ export function MarketApp() {
   const savedDay = new Date(day + 'T12:00:00Z');
   const dateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(savedDay);
 
+  useEffect(() => { trackOpen('market'); }, []);
+
   useEffect(() => {
     function updateDay() {
       const today = utcDate();
@@ -115,6 +119,15 @@ export function MarketApp() {
   }, [roundIndex, finished, mode, practiceSeed]);
 
   function updateRun(next: Run) {
+    // Analytics: first lock-in of a run = start; the third = finish. Never sends picks or names.
+    if (next.revealed && next.choices.length === 1) {
+      track(mode === 'daily' ? 'daily_start' : 'game_start', 'market', mode === 'daily' ? '' : 'practice');
+    }
+    if (next.revealed && next.choices.length === rounds.length) {
+      const hits = score(rounds, next.choices);
+      if (mode === 'daily') track('daily_win', 'market', String(hits));
+      else track('game_end', 'market', 'practice');
+    }
     if (mode === 'practice') {
       setPractice(next);
     } else {
@@ -152,14 +165,12 @@ export function MarketApp() {
   }
 
   async function share() {
-    const marks = run.choices.map((choice, index) => choice === bestDeal(rounds[index]) ? '✓' : '·').join(' ');
-    const message = `Market Margin · ${dateLabel}\n${correct}/3 best deals  ${marks}\nhttps://www.jackattackstreets.com/market-margin/`;
-    try {
-      await navigator.clipboard.writeText(message);
-      setShareStatus('Result copied.');
-    } catch {
-      setShareStatus(message);
-    }
+    const marks = run.choices.map((choice, index) => choice === bestDeal(rounds[index]) ? '✅' : '🟥').join('');
+    const text = `🛒 Market Margin #${dailyNumber(day)} · ${correct}/${rounds.length} best deals\n${marks}\nSame three trades for everyone. Can you beat me?`;
+    track('share', 'market', 'daily');
+    const result = await shareOrCopy(text, 'https://www.jackattackstreets.com/market-margin/', 'Market Margin');
+    setShareStatus(result === 'copied' ? 'Result copied.' : result === 'shared' ? 'Shared.' : text);
+    if (result !== 'failed') window.setTimeout(() => setShareStatus(''), 2500);
   }
 
   return (
@@ -202,7 +213,7 @@ export function MarketApp() {
               ))}
             </div>
             <div className="finish-actions">
-              {mode === 'daily' && <button className="primary" onClick={share}>Copy daily result</button>}
+              {mode === 'daily' && <button className="primary" onClick={share}>Share result</button>}
               <button className={mode === 'daily' ? 'secondary' : 'primary'} onClick={restartPractice}>Play new practice round</button>
             </div>
             {mode === 'daily' && <p className="small-note">A new market opens at midnight UTC.</p>}
