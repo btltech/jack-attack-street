@@ -85,9 +85,9 @@ const AyoTutorial: React.FC<Props> = ({ onClose, onPlay }) => {
     steps.forEach((step, i) => {
       t += i === 0 ? 450 : step.kind === 'capture' ? 650 : 520;
       timers.current.push(window.setTimeout(() => {
-        if (step.kind === 'scoop') playSeedScoop(step.seedsInHand);
-        else if (step.kind === 'capture') playCaptureSound(step.capturedCount ?? 1);
-        else playSeedClack(i, step.pits[step.activePit]);
+        if (step.kind === 'scoop') playSeedScoop(step.seedsInHand, i > 0);
+        else if (step.kind === 'capture') playCaptureSound(step.capturedCount ?? 1, true);
+        else playSeedClack(i, step.pits[step.activePit], step.activePit, i === steps.length - 1);
         setPits(step.pits);
         setScores(step.scores);
         setActivePit(step.kind === 'capture' ? null : step.activePit);
