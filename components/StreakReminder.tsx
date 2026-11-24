@@ -61,11 +61,16 @@ const StreakReminder: React.FC<StreakReminderProps> = ({ game, context, refreshK
   return (
     <div className={`rounded-2xl border border-white/15 bg-black/25 px-3.5 py-2.5 text-left ${className}`}>
       {status === 'off' && (
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-[12px] font-bold text-white/85 leading-tight">🔔 Get a nudge before your streak ends</div>
-          <button onClick={turnOn} disabled={busy} className={`${btn} bg-amber-400 hover:bg-amber-300 text-slate-950 border-amber-600`}>
-            {busy ? '…' : 'Remind me'}
-          </button>
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[12px] font-bold text-white/85 leading-tight">🔔 Get a nudge before your streak ends</div>
+            <button onClick={turnOn} disabled={busy} className={`${btn} bg-amber-400 hover:bg-amber-300 text-slate-950 border-amber-600`}>
+              {busy ? '…' : 'Remind me'}
+            </button>
+          </div>
+          <a href="/privacy/" target="_blank" rel="noopener" className="block mt-1 text-[10px] font-semibold text-white/55 underline underline-offset-2 hover:text-white/80">
+            What we store for reminders
+          </a>
         </div>
       )}
       {status === 'on' && (
