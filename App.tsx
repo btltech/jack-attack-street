@@ -20,6 +20,7 @@ import PersonalityPicker from './components/PersonalityPicker';
 import OnlineRoom from './components/OnlineRoom';
 import DailyLeaderboardModal from './components/DailyLeaderboardModal';
 import PlayingCard, { getThemeCardBackStyle } from './components/PlayingCard';
+import TableStatus from './components/TableStatus';
 import ImpactBanner, { ImpactEvent } from './components/ImpactBanner';
 import { createOnlineRoom, loadNickname, saveNickname } from './core/online';
 import { getDailySeed, getTodayUtcKey, submitDailyScore } from './core/dailyLeaderboard';
@@ -1614,16 +1615,10 @@ const App: React.FC = () => {
 
       {/* CENTER TABLE */}
       <div className="absolute inset-0 flex items-center justify-center">
-        {/* Game Status Banner */}
-        <div aria-live="polite" className="absolute top-[26%] md:top-[25%] z-0 w-full text-center pointer-events-none">
-          <span className="inline-block bg-slate-950/80 text-white px-6 py-2 rounded-full text-sm md:text-lg font-bold backdrop-blur-md border border-white/25 shadow-lg max-w-[90%] truncate">
-            {gameState.lastAction}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-8 md:gap-20 z-10 mt-[-40px]">
+        <div className="relative flex items-center gap-8 md:gap-20 mt-[-40px]">
+          <TableStatus message={gameState.lastAction} pendingPickup={gameState.pendingPickup} chosenSuit={gameState.chosenSuit} />
           {/* Draw Pile */}
-          <div className="flex flex-col items-center group relative">
+          <div className="flex flex-col items-center group relative z-10">
             <button
               ref={drawPileRef}
               onClick={handleDrawClick}
@@ -1644,15 +1639,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Discard Pile (Stacked Physical Depth) */}
-          <div ref={discardRef} className="flex flex-col items-center relative">
-            {gameState.pendingPickup > 0 && <div className="absolute -top-16 bg-red-600 text-white font-display font-black text-xl px-6 py-2 rounded-full shadow-lg animate-bounce z-20 border-4 border-white rotate-6 whitespace-nowrap">+{gameState.pendingPickup} ATTACK!</div>}
-            {gameState.chosenSuit && gameState.pendingPickup === 0 && (
-              <div className="absolute -top-12 bg-yellow-400 text-black font-display font-black text-sm md:text-base px-4 py-1.5 rounded-full shadow-lg z-20 border-2 border-white whitespace-nowrap flex items-center gap-1.5">
-                <span>👑 Wild Suit:</span>
-                <span className={`text-xl leading-none ${['♥', '♦'].includes(gameState.chosenSuit) ? 'text-red-600' : 'text-gray-900'}`}>{gameState.chosenSuit}</span>
-              </div>
-            )}
-
+          <div ref={discardRef} className="flex flex-col items-center relative z-10">
             <div className="relative">
               {prevDiscardCards.map((prev, idx) => (
                 <div

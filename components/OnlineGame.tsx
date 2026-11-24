@@ -14,6 +14,7 @@ import SuitPicker from './SuitPicker';
 import SwapPicker from './SwapPicker';
 import PeekCard from './PeekCard';
 import PlayingCard, { getThemeCardBackStyle } from './PlayingCard';
+import TableStatus from './TableStatus';
 import ImpactBanner, { ImpactEvent } from './ImpactBanner';
 
 interface OnlineGameProps {
@@ -361,15 +362,10 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
 
       {/* CENTER TABLE */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="absolute top-[20%] md:top-[27%] z-0 w-full text-center pointer-events-none px-4">
-          <span className="inline-block bg-black/40 text-indigo-100 px-5 py-1.5 rounded-full text-sm md:text-base font-bold backdrop-blur-md border border-white/20 shadow-lg max-w-[92%] truncate">
-            {game.lastAction}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-8 md:gap-20 z-10 mt-[-40px]">
+        <div className="relative flex items-center gap-8 md:gap-20 mt-[-40px]">
+          <TableStatus message={game.lastAction} pendingPickup={game.pendingPickup} chosenSuit={game.chosenSuit} />
           {/* Draw Pile */}
-          <div className="flex flex-col items-center relative">
+          <div className="flex flex-col items-center relative z-10">
             <button
               onClick={handleDrawClick}
               disabled={!isMyTurn}
@@ -393,19 +389,7 @@ const OnlineGame: React.FC<OnlineGameProps> = ({
           </div>
 
           {/* Discard Pile */}
-          <div className="flex flex-col items-center relative">
-            {game.pendingPickup > 0 && (
-              <div className="absolute -top-14 bg-red-600 text-white font-display font-black text-lg md:text-xl px-5 py-1.5 rounded-full shadow-lg animate-bounce z-20 border-4 border-white rotate-6 whitespace-nowrap">
-                +{game.pendingPickup} ATTACK!
-              </div>
-            )}
-            {game.chosenSuit && game.pendingPickup === 0 && (
-              <div className="absolute -top-12 bg-yellow-400 text-black font-display font-black text-sm md:text-base px-4 py-1.5 rounded-full shadow-lg z-20 border-2 border-white whitespace-nowrap flex items-center gap-1.5">
-                <span>👑 Wild Suit:</span>
-                <span className={`text-xl leading-none ${['♥', '♦'].includes(game.chosenSuit) ? 'text-red-600' : 'text-gray-900'}`}>{game.chosenSuit}</span>
-              </div>
-            )}
-
+          <div className="flex flex-col items-center relative z-10">
             <PlayingCard card={topCard} theme={theme} size="discard" style={{ transform: 'rotate(3deg)' }} />
             <p className="mt-4 text-xs sm:text-sm font-bold text-indigo-100 bg-black/35 px-3 py-1 rounded-full">
               {game.chosenSuit ? `Suit: ${game.chosenSuit}` : 'Top Card'}

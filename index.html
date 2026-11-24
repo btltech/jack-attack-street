@@ -242,7 +242,16 @@
         transform: translateY(-1px);
       }
 
+      .daily-link {
+        color: var(--accent-gold);
+        font-size: 0.875rem;
+        font-weight: 700;
+        padding: 10px 4px;
+        text-underline-offset: 3px;
+      }
+
       .hero-note {
+        margin-top: 10px;
         color: var(--subtle);
         font-size: 0.85rem;
         font-weight: 500;
@@ -528,9 +537,11 @@
             Play solo against thoughtful AI, challenge friends in private rooms, or race the daily leaderboard — free in your browser with no download.
           </p>
           <div class="hero-actions">
-            <a href="/jackattack/?daily=1" class="btn-daily">Play Today’s Daily Seed →</a>
-            <span class="hero-note">No sign-up required · Works on mobile &amp; desktop</span>
+            <a href="/dice/" class="btn-daily">Play Street Dice · 60-second daily →</a>
+            <a href="/jackattack/?daily=1" class="daily-link">Jack Attack Daily Seed</a>
+            <a href="/ayo/#daily-ayo" class="daily-link">Daily Ayò</a>
           </div>
+          <p class="hero-note">No sign-up required · Works on mobile &amp; desktop</p>
         </section>
 
         <section class="games-grid" aria-label="Available Games">

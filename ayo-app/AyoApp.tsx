@@ -78,6 +78,7 @@ const AyoApp: React.FC = () => {
 
   // Solo / Local / Challenge game state
   const [gameState, setGameState] = useState<AyoState | null>(null);
+  const [moveHint, setMoveHint] = useState<{ pit: number; reason: string } | null>(null);
   const [displayPits, setDisplayPits] = useState<number[]>(Array(12).fill(4));
   const [displayScores, setDisplayScores] = useState<[number, number]>([0, 0]);
   const [animatingPit, setAnimatingPit] = useState<number | null>(null);
@@ -160,6 +161,7 @@ const AyoApp: React.FC = () => {
     playAyoClick();
     clearAnimTimers();
     setIsAnimating(false);
+    setMoveHint(null);
     setAnimatingPit(null);
     setHandPit(null);
     setHandPhase('idle');
@@ -197,6 +199,7 @@ const AyoApp: React.FC = () => {
     const { nextState, steps, captured } = applyAyoMove(state, pit, names);
     if (steps.length === 0) return;
 
+    setMoveHint(null);
     setIsAnimating(true);
     clearAnimTimers();
 
@@ -452,7 +455,8 @@ const AyoApp: React.FC = () => {
     topLabel: string,
     bottomLabel: string,
     topActive: boolean,
-    bottomActive: boolean
+    bottomActive: boolean,
+    suggestedPit?: number
   ) => {
     // Bottom row is always the viewer's side; Top row is opponent's side (reversed so counter-clockwise flows naturally!)
     const bottomIndices = flipPerspective ? [6, 7, 8, 9, 10, 11] : [0, 1, 2, 3, 4, 5];
@@ -579,6 +583,7 @@ const AyoApp: React.FC = () => {
               const count = pits[pitIdx];
               const label = isTop ? topLabel : bottomLabel;
               const isLegal = canInteract && legalMoves.includes(pitIdx);
+              const isSuggested = isLegal && suggestedPit === pitIdx;
               const isActive = animatingPit === pitIdx;
               const isCaptured = capturedPits.includes(pitIdx);
               const stateClass = isCaptured
@@ -599,8 +604,8 @@ const AyoApp: React.FC = () => {
                   data-pit={pitIdx}
                   disabled={!isLegal}
                   onClick={() => isLegal && onPitClick(pitIdx)}
-                  aria-label={`${label} pit ${(pitIdx % 6) + 1}, ${count} seeds${isLegal ? ', playable' : ''}`}
-                  className={`relative aspect-square rounded-full flex items-center justify-center transition-all duration-200 border-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 ${isVertical ? 'w-full max-w-[92px] mx-auto' : ''} ${stateClass}`}
+                  aria-label={`${label} pit ${(pitIdx % 6) + 1}, ${count} seeds${isLegal ? ', playable' : ''}${isSuggested ? ', suggested move' : ''}`}
+                  className={`relative aspect-square rounded-full flex items-center justify-center transition-all duration-200 border-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 ${isVertical ? 'w-full max-w-[92px] mx-auto' : ''} ${stateClass} ${isSuggested ? 'ring-4 ring-emerald-300' : ''}`}
                 >
                   {isActive && animStepKind && (
                     <span
@@ -1027,6 +1032,31 @@ const AyoApp: React.FC = () => {
   if (screen === 'game' && gameState) {
     const canMove = !isAnimating && gameState.winner === null && (isPassAndPlay || gameState.turn === 0);
     const legal = canMove ? getLegalMoves(gameState) : [];
+    const canRequestHint = canMove && legal.length > 0 && !isPassAndPlay && !activeChallenge && profile.games === 0;
+    const showMoveHint = () => {
+      const pit = chooseAyoAIMove(gameState, 'medium');
+      if (pit === null) return;
+
+      const { nextState, steps, captured } = applyAyoMove(gameState, pit);
+      let reason: string;
+      if (nextState.winner === gameState.turn) {
+        reason = 'This move wins the match.';
+      } else if (captured > 0) {
+        reason = gameState.ruleSet === 'yoruba_ayo' && steps.some((step) => step.kind === 'capture')
+          ? `Your last seed lands in an empty pit on your side and captures ${captured} from across the board.`
+          : `This move captures ${captured} ${captured === 1 ? 'seed' : 'seeds'}.`;
+      } else if (nextState.winner !== null) {
+        reason = nextState.winner === 'draw' ? 'This move secures a draw.' : 'This move is your best available option.';
+      } else {
+        const mostTheyCanCapture = Math.max(0, ...getLegalMoves(nextState).map(
+          (reply) => applyAyoMove(nextState, reply).captured
+        ));
+        reason = mostTheyCanCapture === 0
+          ? `${opponent.name} can’t capture any seeds on the next turn.`
+          : `${opponent.name} can capture at most ${mostTheyCanCapture} ${mostTheyCanCapture === 1 ? 'seed' : 'seeds'} on the next turn.`;
+      }
+      setMoveHint({ pit, reason });
+    };
     const humanWon = gameState.winner === 0;
     const closeMatch = Math.abs(gameState.scores[0] - gameState.scores[1]) <= 4;
 
@@ -1121,6 +1151,17 @@ const AyoApp: React.FC = () => {
                   : `🌱 Sowing... (${seedsInHand} left in hand)`
                 : gameState.lastAction}
             </span>
+            {canRequestHint && (
+              <button
+                type="button"
+                aria-expanded={moveHint !== null}
+                aria-controls="first-match-hint"
+                onClick={() => moveHint ? setMoveHint(null) : showMoveHint()}
+                className="bg-black/50 hover:bg-black/70 border border-emerald-400/60 text-emerald-100 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-bold"
+              >
+                {moveHint ? 'Hide hint' : '💡 Show a move hint'}
+              </button>
+            )}
             {isAnimating && animLong && (
               <button
                 type="button"
@@ -1130,6 +1171,10 @@ const AyoApp: React.FC = () => {
                 ⏩ Skip
               </button>
             )}
+          </div>
+
+          <div id="first-match-hint" role="status" className={moveHint ? 'max-w-lg mx-auto mb-4 text-center text-sm text-emerald-100' : undefined}>
+            {moveHint && <><strong>Try pit {moveHint.pit + 1}.</strong> {moveHint.reason}</>}
           </div>
 
           {renderBoard(
@@ -1142,7 +1187,8 @@ const AyoApp: React.FC = () => {
             isPassAndPlay ? 'Òkè (North — Player 2)' : `${opponent.avatar} ${opponent.name} (${opponent.difficulty})`,
             isPassAndPlay ? 'Ìsàlẹ̀ (South — Player 1)' : '😎 You (Ìsàlẹ̀)',
             gameState.winner === null && gameState.turn === 1,
-            gameState.winner === null && gameState.turn === 0
+            gameState.winner === null && gameState.turn === 0,
+            moveHint?.pit
           )}
         </main>
 
@@ -1252,7 +1298,7 @@ const AyoApp: React.FC = () => {
           onClose={() => setShowTutorial(false)}
           onPlay={(choice) => {
             setShowTutorial(false);
-            if (choice === 'daily') startLocalGame(false, dailyPuzzle);
+            startLocalGame(false, choice === 'daily' ? dailyPuzzle : undefined);
           }}
         />
       )}
@@ -1308,7 +1354,7 @@ const AyoApp: React.FC = () => {
             </div>
 
             {/* Daily Ayò: same opening for everyone, streak + countdown */}
-            <div className="mb-4 rounded-2xl border-2 border-amber-400/50 bg-black/25 p-3.5">
+            <div id="daily-ayo" className="mb-4 scroll-mt-4 rounded-2xl border-2 border-amber-400/50 bg-black/25 p-3.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-left min-w-0">
                   <div className="text-xs font-extrabold uppercase tracking-wider text-amber-300">📅 Daily Ayò #{dailyNumber(todayKey)}</div>
