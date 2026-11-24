@@ -11,6 +11,7 @@ import {
 import {
   AyoState, AyoRuleSet, createAyoGame, applyAyoMove, getLegalMoves,
 } from '../../ayo-app/engine';
+import { dailySeedKey, resolveRun, ROUNDS } from '../../core/diceEngine';
 
 export interface Env extends PushEnv {
   ROOMS: DurableObjectNamespace<GameRoom>;
@@ -42,7 +43,7 @@ const ALLOWED_EVENTS = new Set([
   'tutorial_start', 'tutorial_step', 'tutorial_done', 'tutorial_skip',
   'install_accept', 'install_dismiss', 'reminder_on', 'reminder_off', 'reminder_denied',
 ]);
-const ALLOWED_GAMES = new Set(['jack', 'ayo', 'site']);
+const ALLOWED_GAMES = new Set(['jack', 'ayo', 'dice', 'site']);
 
 // Created on first use so deploying needs no manual migration (worker/schema.sql documents it).
 let eventsTableReady = false;
@@ -91,6 +92,46 @@ const fetchTopScores = async (db: D1Database, day: string) => {
       name: row.name,
       durationMs: row.duration_ms,
       cardsPlayed: row.cards_played,
+    }))),
+  };
+};
+
+// --- Street Dice daily: one scored game per player per day. The Worker replays the submitted choices
+// against the day's rolls, so a forged score is rejected (see core/diceEngine.ts). ---
+let diceTableReady = false;
+const ensureDiceTable = async (db: D1Database): Promise<void> => {
+  if (diceTableReady) return;
+  await db.batch([
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS dice_scores (
+         day TEXT NOT NULL, guest_id TEXT NOT NULL, name TEXT NOT NULL,
+         score INTEGER NOT NULL, rolls INTEGER NOT NULL, created_at INTEGER NOT NULL,
+         PRIMARY KEY (day, guest_id)
+       )`
+    ),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_dice_day_score ON dice_scores (day, score DESC)'),
+  ]);
+  diceTableReady = true;
+};
+
+interface DiceScoreRow { guest_id: string; name: string; score: number; rolls: number }
+
+const fetchDiceBoard = async (db: D1Database, day: string) => {
+  await ensureDiceTable(db);
+  const { results } = await db
+    .prepare('SELECT guest_id, name, score, rolls FROM dice_scores WHERE day = ? ORDER BY score DESC, rolls ASC, created_at ASC LIMIT 20')
+    .bind(day)
+    .all<DiceScoreRow>();
+  const countRow = await db.prepare('SELECT COUNT(*) as total FROM dice_scores WHERE day = ?').bind(day).first<{ total: number }>();
+  return {
+    day,
+    total: Number(countRow?.total ?? 0),
+    entries: await Promise.all((results || []).map(async (row, i) => ({
+      rank: i + 1,
+      playerId: await publicPlayerId(row.guest_id),
+      name: row.name,
+      score: row.score,
+      rolls: row.rolls,
     }))),
   };
 };
@@ -237,6 +278,58 @@ export default {
         rank: Number(betterCount?.c ?? 0) + 1,
         bestDurationMs: bestDuration,
         ...board,
+      }, 200, origin);
+    }
+
+    // Street Dice leaderboard: GET /api/dice/:day/leaderboard (or /api/dice/leaderboard)
+    const diceLb = url.pathname.match(/^\/api\/dice(?:\/(\d{4}-\d{2}-\d{2}))?\/leaderboard$/);
+    if (diceLb && request.method === 'GET') {
+      const day = diceLb[1] || getUtcDay();
+      if (!isValidDay(day)) return jsonResponse({ error: 'Invalid day' }, 400, origin);
+      return jsonResponse(await fetchDiceBoard(env.DB, day), 200, origin);
+    }
+
+    // Submit a Street Dice daily game: POST /api/dice/score. Only the first game of a day counts.
+    if (url.pathname === '/api/dice/score' && request.method === 'POST') {
+      let body: { day?: string; guestId?: string; name?: string; rounds?: unknown };
+      try {
+        body = (await request.json()) as typeof body;
+      } catch {
+        return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
+      }
+      if (!body || typeof body !== 'object') return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
+      const day = body.day && isValidDay(body.day) ? body.day : getUtcDay();
+      if (!isAcceptableDay(day)) return jsonResponse({ error: 'Invalid day' }, 400, origin);
+      const guestId = String(body.guestId || '').trim().slice(0, 64);
+      if (!guestId) return jsonResponse({ error: 'Missing guestId' }, 400, origin);
+      const name = cleanName(body.name);
+      const choices = Array.isArray(body.rounds) && body.rounds.length === ROUNDS
+        ? body.rounds.map((r) => ({ n: Number((r as { n?: unknown })?.n), banked: (r as { banked?: unknown })?.banked }))
+        : null;
+      const run = choices && resolveRun(dailySeedKey(day), choices as { n: number; banked: boolean }[]);
+      if (!run) return jsonResponse({ error: 'Invalid game' }, 400, origin);
+
+      await ensureDiceTable(env.DB);
+      // First game wins: replaying the same fixed rolls must not be able to improve a score.
+      await env.DB
+        .prepare('INSERT INTO dice_scores (day, guest_id, name, score, rolls, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(day, guest_id) DO UPDATE SET name = excluded.name')
+        .bind(day, guestId, name, run.score, run.totalRolls, Date.now())
+        .run();
+      const mine = await env.DB
+        .prepare('SELECT score, rolls FROM dice_scores WHERE day = ? AND guest_id = ?')
+        .bind(day, guestId)
+        .first<{ score: number; rolls: number }>();
+      const myScore = mine?.score ?? run.score;
+      const myRolls = mine?.rolls ?? run.totalRolls;
+      const better = await env.DB
+        .prepare('SELECT COUNT(*) as c FROM dice_scores WHERE day = ? AND (score > ? OR (score = ? AND rolls < ?))')
+        .bind(day, myScore, myScore, myRolls)
+        .first<{ c: number }>();
+      return jsonResponse({
+        ok: true,
+        score: myScore,
+        rank: Number(better?.c ?? 0) + 1,
+        ...(await fetchDiceBoard(env.DB, day)),
       }, 200, origin);
     }
 

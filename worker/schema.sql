@@ -24,3 +24,14 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_day ON events (day, event);
 CREATE INDEX IF NOT EXISTS idx_events_anon ON events (anon, day);
+
+CREATE TABLE IF NOT EXISTS dice_scores (
+  day TEXT NOT NULL,
+  guest_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  score INTEGER NOT NULL,
+  rolls INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (day, guest_id)
+);
+CREATE INDEX IF NOT EXISTS idx_dice_day_score ON dice_scores (day, score DESC);

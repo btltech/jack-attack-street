@@ -25,11 +25,13 @@ const DailyStreakBadge: React.FC<DailyStreakBadgeProps> = ({ game, refreshKey, c
     return () => window.clearInterval(id);
   }, [game, refreshKey]);
 
+  // Street Dice has no win or loss: finishing the daily is what counts.
+  const verb = game === 'dice' ? 'Play' : 'Win';
   const message = status.solvedToday
-    ? `Solved today ✓ · next daily in ${formatCountdown(msLeft)}`
+    ? `${game === 'dice' ? 'Played' : 'Solved'} today ✓ · next daily in ${formatCountdown(msLeft)}`
     : status.streak > 0
-      ? `Win today to keep it going · resets in ${formatCountdown(msLeft)}`
-      : `Win today's daily to start a streak · ${formatCountdown(msLeft)} left`;
+      ? `${verb} today to keep it going · resets in ${formatCountdown(msLeft)}`
+      : `${verb} today's daily to start a streak · ${formatCountdown(msLeft)} left`;
 
   return (
     <div

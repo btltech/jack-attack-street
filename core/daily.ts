@@ -2,7 +2,7 @@
 // Everything here is local to the player's browser (no account needed). Days are UTC days
 // ("2026-11-24"), the same days the daily seed and the daily Ayò puzzle rotate on.
 
-export type DailyGame = 'jack' | 'ayo';
+export type DailyGame = 'jack' | 'ayo' | 'dice';
 
 // Daily #1 is the launch day; later days count up from it.
 const LAUNCH_DAY = '2026-11-23';
