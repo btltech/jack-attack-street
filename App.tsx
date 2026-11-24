@@ -23,6 +23,8 @@ import PlayingCard, { getThemeCardBackStyle } from './components/PlayingCard';
 import ImpactBanner, { ImpactEvent } from './components/ImpactBanner';
 import { createOnlineRoom, loadNickname, saveNickname } from './core/online';
 import { getDailySeed, getTodayUtcKey, submitDailyScore } from './core/dailyLeaderboard';
+import { recordDailyWin, dailyNumber, streakLabel } from './core/daily';
+import DailyStreakBadge from './components/DailyStreakBadge';
 import { getTodaysChallenge, getDailyProgress, checkChallengeCompletion } from './core/challenges';
 import { getCurrentTheme, CardTheme, unlockTheme, isThemeUnlocked } from './core/themes';
 import { loadInventory, usePowerUp, powerUpCatalog, PowerUpInventory } from './core/powerups';
@@ -119,6 +121,8 @@ const App: React.FC = () => {
   // Same-seed Daily Challenge + D1 Leaderboard state
   const [showDailyBoard, setShowDailyBoard] = useState<boolean>(false);
   const [isDailySeedRun, setIsDailySeedRun] = useState<boolean>(false);
+  const [dailyStreakInfo, setDailyStreakInfo] = useState<{ streak: number; firstWinToday: boolean } | null>(null);
+  const [dailyStreakVersion, setDailyStreakVersion] = useState<number>(0);
   const [dailyRankResult, setDailyRankResult] = useState<{ rank: number; total: number; improved: boolean; day: string } | null>(null);
 
   // Drop A & B: Arcade impact banner, power-up inventory, X-Ray overlay, coins earned
@@ -215,6 +219,10 @@ const App: React.FC = () => {
 
     if (isWin && isDailySeedRun) {
       const today = getTodayUtcKey();
+      // Streak is saved on this device straight away, so it counts even if the score upload fails.
+      const streakRes = recordDailyWin('jack', today);
+      setDailyStreakInfo({ streak: streakRes.streak, firstWinToday: streakRes.firstWinToday });
+      setDailyStreakVersion((v) => v + 1);
       submitDailyScore({
         day: today,
         name: loadNickname() || nickname || 'Player',
@@ -407,6 +415,7 @@ const App: React.FC = () => {
     const initialState = createNewGame(numPlayers, difficulty, gameMode, undefined, dailySeed);
     setGameState(initialState);
     setIsDailySeedRun(Boolean(dailySeed));
+    setDailyStreakInfo(null);
     setDailyRankResult(null);
     setErrorMsg(null);
     setShowConfetti(false);
@@ -1051,6 +1060,8 @@ const App: React.FC = () => {
                   </button>
                 </div>
 
+                <DailyStreakBadge game="jack" refreshKey={dailyStreakVersion} />
+
                 {stats && (
                   <DailyChallenge
                     onClaim={(reward) => {
@@ -1240,7 +1251,7 @@ const App: React.FC = () => {
     const winner = gameState.players.find(p => p.id === gameState.winnerId);
     const shareText = isHumanWinner
       ? isDailySeedRun
-        ? `🃏 Jack Attack Street — Daily ${dailyRankResult?.day || getTodayUtcKey()}\n🏆 ${dailyRankResult ? `Ranked #${dailyRankResult.rank} of ${dailyRankResult.total}` : 'Cleared!'} • ⏱️ ${formatDuration(lastMatchDurationMs)} • 🃏 ${cardsPlayedRef.current} cards\nSame deck for everyone — can you beat my time?\nhttps://www.jackattackstreets.com/jackattack/?daily=1`
+        ? `🃏 Jack Attack Street Daily #${dailyNumber(dailyRankResult?.day || getTodayUtcKey())}\n🏆 ${dailyRankResult ? `Ranked #${dailyRankResult.rank} of ${dailyRankResult.total}` : 'Cleared!'} • ⏱️ ${formatDuration(lastMatchDurationMs)} • 🃏 ${cardsPlayedRef.current} cards${dailyStreakInfo ? `\n🔥 ${streakLabel(dailyStreakInfo.streak)}` : ''}\nSame deck for everyone — can you beat my time?\nhttps://www.jackattackstreets.com/jackattack/?daily=1`
         : `🃏 I just won Jack Attack Street (${gameState.difficulty.toUpperCase()}) in ${formatDuration(lastMatchDurationMs)} playing ${cardsPlayedRef.current} cards! 🏆 Can you beat me?\nhttps://www.jackattackstreets.com/jackattack/`
       : `🃏 Just played a wild match of Jack Attack Street! Think you can beat ${winner?.name || 'the bots'}?\nhttps://www.jackattackstreets.com/jackattack/`;
 
@@ -1292,6 +1303,24 @@ const App: React.FC = () => {
                 ? `${winner?.avatar} ${winner?.name} barely edged it — you were right there!`
                 : `Great battle against ${winner?.avatar} ${winner?.name}! Every round makes you sharper.`}
           </p>
+
+          {isDailySeedRun && (
+            <div className="mb-4 space-y-2">
+              {isHumanWinner && dailyStreakInfo && (
+                <div className="bg-orange-500/25 border-2 border-orange-400 rounded-2xl px-4 py-2 text-orange-100 font-black text-sm">
+                  {dailyStreakInfo.firstWinToday
+                    ? `🎉 Daily #${dailyNumber(getTodayUtcKey())} cleared!`
+                    : `✓ Daily #${dailyNumber(getTodayUtcKey())} was already counted today`}
+                </div>
+              )}
+              {!isHumanWinner && (
+                <div className="bg-black/30 border border-white/15 rounded-2xl px-4 py-2 text-purple-100 text-xs font-bold">
+                  Not this time. Your streak is safe until the next UTC day, so run the same deck again.
+                </div>
+              )}
+              <DailyStreakBadge game="jack" refreshKey={dailyStreakVersion} />
+            </div>
+          )}
 
           {isHumanWinner && isDailySeedRun && dailyRankResult && (
             <div className="mb-5 bg-yellow-400/20 border-2 border-yellow-400 rounded-2xl px-4 py-2.5 text-yellow-200 font-black text-sm">

@@ -1,9 +1,9 @@
 // ayo-app/AyoApp.tsx - Full-featured, accessible Ayò Ọlọ́pọ́n v2 (AI, Online 1v1, Pass & Play, Challenges, 3D View, Seed Skins, Pictorial Guide)
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   AyoState, AyoDifficulty, AyoRuleSet, AyoChallenge,
   AI_OPPONENTS, SEED_SKINS, AYO_CHALLENGES,
-  createAyoGame, applyAyoMove, getLegalMoves, chooseAyoAIMove,
+  createAyoGame, applyAyoMove, getLegalMoves, chooseAyoAIMove, createAyoDailyPuzzle,
 } from './engine';
 import {
   playSeedClack, playSeedScoop, playCaptureSound, playAyoClick, playAyoWinSound,
@@ -13,6 +13,8 @@ import {
   createAyoOnlineRoom, getAyoInviteUrl, useAyoOnlineRoom,
 } from './online';
 import { loadNickname, saveNickname } from '../core/online';
+import { recordDailyWin, getDailyStatus, utcDay, dailyNumber, shareOrCopy, streakLabel } from '../core/daily';
+import DailyStreakBadge from '../components/DailyStreakBadge';
 
 interface AyoProfile {
   xp: number;
@@ -43,6 +45,11 @@ const AyoApp: React.FC = () => {
   const [screen, setScreen] = useState<'lobby' | 'game' | 'online'>('lobby');
   const [modeTab, setModeTab] = useState<'ai' | 'online' | 'local' | 'challenge'>('ai');
   const [selectedOppIdx, setSelectedOppIdx] = useState<number>(0);
+  // Daily Ayò: same opening position for everyone each UTC day; winning it extends your streak.
+  const todayKey = utcDay();
+  const dailyPuzzle = useMemo(() => createAyoDailyPuzzle(todayKey, dailyNumber(todayKey)), [todayKey]);
+  const [dailyStreakVersion, setDailyStreakVersion] = useState<number>(0);
+  const [dailyResult, setDailyResult] = useState<{ streak: number; firstWinToday: boolean } | null>(null);
   const [ruleSet, setRuleSet] = useState<AyoRuleSet>('yoruba_ayo');
   const [sowPace, setSowPace] = useState<'slow' | 'steady' | 'brisk'>('steady');
   const [is3D, setIs3D] = useState<boolean>(true);
@@ -144,7 +151,9 @@ const AyoApp: React.FC = () => {
     setIsPassAndPlay(passPlay);
     setActiveChallenge(challenge || null);
 
-    const rules: AyoRuleSet = challenge ? 'oware' : ruleSet;
+    const rules: AyoRuleSet = challenge ? (challenge.ruleSet ?? 'oware') : ruleSet;
+    setDailyResult(null);
+    if (challenge?.daily) setSelectedOppIdx(1); // the daily is played against Fadeyi
     const init = createAyoGame(rules, challenge?.pits, challenge?.scores);
     if (challenge) {
       init.lastAction = `🧩 ${challenge.title}: ${challenge.goal}`;
@@ -274,6 +283,11 @@ const AyoApp: React.FC = () => {
         if (humanWon) playAyoWinSound();
         else playAyoGoodGameSound();
         if (!isPassAndPlay) awardXp(nextState.winner === 0);
+        if (activeChallenge?.daily && activeChallenge.day && nextState.winner === 0) {
+          const res = recordDailyWin('ayo', activeChallenge.day);
+          setDailyResult({ streak: res.streak, firstWinToday: res.firstWinToday });
+          setDailyStreakVersion((v) => v + 1);
+        }
       } else if (captured >= 4) {
         setCaptureFlash(`Master Capture +${captured}`);
         window.setTimeout(() => setCaptureFlash(null), 1300);
@@ -913,6 +927,20 @@ const AyoApp: React.FC = () => {
 
     const handleShareResult = async () => {
       playAyoClick();
+      if (activeChallenge?.daily && !isPassAndPlay) {
+        const num = dailyNumber(activeChallenge.day);
+        const humanMoves = Math.ceil(gameState.moveCount / 2);
+        const status = getDailyStatus('ayo', activeChallenge.day);
+        const dailyText = humanWon
+          ? `🐚 Ayò Ọlọ́pọ́n Daily #${num}\n🏆 Beat ${opponent.name} ${gameState.scores[0]}–${gameState.scores[1]} in ${humanMoves} move${humanMoves === 1 ? '' : 's'}${status.streak > 0 ? `\n🔥 ${streakLabel(status.streak)}` : ''}\nSame opening for everyone. Can you do it faster?`
+          : `🐚 Ayò Ọlọ́pọ́n Daily #${num}\n${opponent.name} won ${gameState.scores[1]}–${gameState.scores[0]} this time.\nSame opening for everyone. Can you beat it?`;
+        const outcome = await shareOrCopy(dailyText, 'https://www.jackattackstreets.com/ayo/', `Ayò Daily #${num}`);
+        if (outcome === 'copied') {
+          setShareCopied(true);
+          setTimeout(() => setShareCopied(false), 2400);
+        }
+        return;
+      }
       const text = humanWon
         ? `🐚 I just beat ${opponent.name} (${gameState.scores[0]}–${gameState.scores[1]}) in Ayò Ọlọ́pọ́n! Can you outcalculate the Ọpọ́n?\nhttps://www.jackattackstreets.com/ayo/`
         : `🐚 Just played an intense match of Ayò Ọlọ́pọ́n (${gameState.scores[0]}–${gameState.scores[1]})! Play free in your browser:\nhttps://www.jackattackstreets.com/ayo/`;
@@ -1028,6 +1056,24 @@ const AyoApp: React.FC = () => {
                 {opponent.proverb}
               </p>
 
+              {activeChallenge?.daily && !isPassAndPlay && (
+                <div className="mb-4 space-y-2">
+                  {humanWon && dailyResult && (
+                    <div className="bg-orange-500/25 border-2 border-orange-400 rounded-2xl px-4 py-2 text-orange-100 font-black text-sm">
+                      {dailyResult.firstWinToday
+                        ? `🎉 Daily #${dailyNumber(activeChallenge.day)} solved!`
+                        : `✓ Daily #${dailyNumber(activeChallenge.day)} was already counted today`}
+                    </div>
+                  )}
+                  {!humanWon && (
+                    <div className="bg-black/30 border border-white/15 rounded-2xl px-4 py-2 text-emerald-100 text-xs font-bold">
+                      Not this time. Your streak is safe until the next UTC day, so try the same puzzle again.
+                    </div>
+                  )}
+                  <DailyStreakBadge game="ayo" refreshKey={dailyStreakVersion} />
+                </div>
+              )}
+
               {!isPassAndPlay && lastXpEarned > 0 && (
                 <div className="inline-block bg-amber-400/20 border border-amber-400/60 text-amber-200 text-xs font-black px-4 py-1.5 rounded-full mb-5">
                   +{lastXpEarned} XP {humanWon ? 'Victory Bonus!' : 'Good Game Bonus!'} • Level {level}
@@ -1105,6 +1151,23 @@ const AyoApp: React.FC = () => {
               <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
                 Pure calculation, wooden percussion, and classic African Mancala — play solo, pass &amp; play, or 1v1 online!
               </p>
+            </div>
+
+            {/* Daily Ayò: same opening for everyone, streak + countdown */}
+            <div className="mb-4 rounded-2xl border-2 border-amber-400/50 bg-black/25 p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-left min-w-0">
+                  <div className="text-xs font-extrabold uppercase tracking-wider text-amber-300">📅 Daily Ayò #{dailyNumber(todayKey)}</div>
+                  <div className="text-xs text-emerald-100/90">Same opening for everyone. Beat Fadeyi.</div>
+                </div>
+                <button
+                  onClick={() => { playAyoClick(); startLocalGame(false, dailyPuzzle); }}
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-display font-black text-sm px-4 py-2 rounded-xl border-b-4 border-amber-600 shrink-0"
+                >
+                  {getDailyStatus('ayo', todayKey).solvedToday ? 'Play again ▶' : 'Play ▶'}
+                </button>
+              </div>
+              <DailyStreakBadge game="ayo" refreshKey={dailyStreakVersion} className="mt-2 !py-1.5" />
             </div>
 
             {/* Mode Tabs */}

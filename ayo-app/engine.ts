@@ -95,6 +95,11 @@ export interface AyoChallenge {
   scores: [number, number];
   goal: string;
   difficulty: AyoDifficulty;
+  /** Rule set to play this position under. Defaults to Oware for the hand-made puzzles. */
+  ruleSet?: AyoRuleSet;
+  /** True for the generated "daily Ayò" position, which everyone gets on the same UTC day. */
+  daily?: boolean;
+  day?: string;
 }
 
 export const AYO_CHALLENGES: AyoChallenge[] = [
@@ -551,4 +556,60 @@ export const chooseAyoAIMove = (state: AyoState, difficulty: AyoDifficulty): num
     }
   }
   return bestMove;
+};
+
+// --- DAILY AYÒ ---
+// Everyone gets the same position on the same UTC day: a few seeded random opening moves from the
+// standard start, kept only if neither side is already clearly ahead. The player moves first.
+
+const hashString = (str: string): number => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+
+const seededRandom = (seed: string): (() => number) => {
+  let a = hashString(seed) || 1;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const DAILY_OPENING_PLIES = 8; // even, so it is the player's turn again
+
+export const createAyoDailyPuzzle = (day: string, dayNumber: number): AyoChallenge => {
+  const ruleSet: AyoRuleSet = 'yoruba_ayo';
+  let best: AyoState | null = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const rng = seededRandom(`ayo-daily-${day}-${attempt}`);
+    let state = createAyoGame(ruleSet);
+    for (let ply = 0; ply < DAILY_OPENING_PLIES && state.winner === null; ply++) {
+      const legal = getLegalMoves(state);
+      if (legal.length === 0) break;
+      state = applyAyoMove(state, legal[Math.floor(rng() * legal.length)]).nextState;
+    }
+    if (state.winner !== null || state.turn !== 0 || getLegalMoves(state).length === 0) continue;
+    const balanced = Math.abs(state.scores[0] - state.scores[1]) <= 4;
+    if (balanced) { best = state; break; }
+    if (!best) best = state;
+  }
+  const start = best ?? createAyoGame(ruleSet);
+  return {
+    id: `daily-${day}`,
+    title: `Daily Ayò #${dayNumber}`,
+    subtitle: 'The same opening position for every player today.',
+    pits: [...start.pits],
+    scores: [start.scores[0], start.scores[1]],
+    goal: 'Beat Fadeyi from this position to keep your streak alive.',
+    difficulty: 'medium',
+    ruleSet,
+    daily: true,
+    day,
+  };
 };

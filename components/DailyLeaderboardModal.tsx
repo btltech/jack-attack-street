@@ -7,6 +7,7 @@ import {
   DailyLeaderboardResponse,
 } from '../core/dailyLeaderboard';
 import { loadNickname, saveNickname } from '../core/online';
+import DailyStreakBadge from './DailyStreakBadge';
 import { formatDuration } from '../core/stats';
 import { playClickSound } from '../core/sounds';
 
@@ -76,6 +77,8 @@ const DailyLeaderboardModal: React.FC<DailyLeaderboardModalProps> = ({
             Everyone plays the exact same shuffled deck (2P Medium). Fastest win takes #1!
           </p>
         </div>
+
+        <DailyStreakBadge game="jack" className="mb-3" />
 
         {/* Nickname + Play CTA */}
         <div className="bg-black/25 p-3 rounded-2xl border border-white/15 mb-4 space-y-2.5">
