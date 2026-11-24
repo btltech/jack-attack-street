@@ -15,8 +15,16 @@ export interface PushEnv {
   PUSH_EXTRA_HOSTS?: string;
 }
 
-type Game = 'jack' | 'ayo' | 'dice';
-const GAMES: Game[] = ['jack', 'ayo', 'dice'];
+type Game = 'jack' | 'ayo' | 'dice' | 'market';
+const GAMES: Game[] = ['jack', 'ayo', 'dice', 'market'];
+const isGame = (g: string): g is Game => (GAMES as string[]).includes(g);
+const GAME_NAME: Record<Game, string> = { jack: 'Jack Attack', ayo: 'Ayò', dice: 'Street Dice', market: 'Market Margin' };
+const GAME_URL: Record<Game, string> = {
+  jack: '/jackattack/?daily=1&source=push', ayo: '/ayo/?source=push', dice: '/dice/?source=push', market: '/market-margin/?source=push',
+};
+const GAME_ICON: Record<Game, string> = {
+  jack: '/icon-192.png', ayo: '/ayo/icon-192.png', dice: '/dice/icon-192.png', market: '/market-margin/icon-192.png',
+};
 const DAY_MS = 86_400_000;
 const MAX_PER_RUN = 40; // stay well inside the Workers subrequest limit; the 10-minute cron picks up the rest
 
@@ -60,8 +68,11 @@ const ensureTable = async (db: D1Database): Promise<void> => {
     ),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_push_subs_hour ON push_subs (hour_utc, last_sent_day)'),
   ]);
-  // Street Dice was added after the table existed: add its columns once (fails harmlessly if already there).
-  for (const col of ['ALTER TABLE push_subs ADD COLUMN streak_dice INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE push_subs ADD COLUMN win_dice TEXT']) {
+  // Street Dice and Market Margin were added after the table existed: add their columns once (fails harmlessly if already there).
+  for (const col of [
+    'ALTER TABLE push_subs ADD COLUMN streak_dice INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE push_subs ADD COLUMN win_dice TEXT',
+    'ALTER TABLE push_subs ADD COLUMN streak_market INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE push_subs ADD COLUMN win_market TEXT',
+  ]) {
     try { await db.prepare(col).run(); } catch { /* column already exists */ }
   }
   tableReady = true;
@@ -73,6 +84,7 @@ interface SubRow {
   streak_jack: number; win_jack: string | null;
   streak_ayo: number; win_ayo: string | null;
   streak_dice: number | null; win_dice: string | null;
+  streak_market: number | null; win_market: string | null;
   last_sent_day: string | null;
 }
 
@@ -94,7 +106,7 @@ export interface PushBody {
   game?: unknown;
   streak?: unknown;
   lastWinDay?: unknown;
-  state?: { jack?: GameState; ayo?: GameState; dice?: GameState };
+  state?: { jack?: GameState; ayo?: GameState; dice?: GameState; market?: GameState };
 }
 
 export const subscribe = async (env: PushEnv, body: PushBody): Promise<{ ok: boolean; error?: string }> => {
@@ -105,18 +117,20 @@ export const subscribe = async (env: PushEnv, body: PushBody): Promise<{ ok: boo
   const jack = readGame(body.state?.jack);
   const ayo = readGame(body.state?.ayo);
   const dice = readGame(body.state?.dice);
+  const market = readGame(body.state?.market);
   await env.DB
     .prepare(
-      `INSERT INTO push_subs (endpoint, hour_utc, streak_jack, win_jack, streak_ayo, win_ayo, streak_dice, win_dice, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO push_subs (endpoint, hour_utc, streak_jack, win_jack, streak_ayo, win_ayo, streak_dice, win_dice, streak_market, win_market, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(endpoint) DO UPDATE SET
          hour_utc = excluded.hour_utc,
          streak_jack = excluded.streak_jack, win_jack = excluded.win_jack,
          streak_ayo = excluded.streak_ayo, win_ayo = excluded.win_ayo,
         streak_dice = excluded.streak_dice, win_dice = excluded.win_dice,
+        streak_market = excluded.streak_market, win_market = excluded.win_market,
          updated_at = excluded.updated_at`
     )
-    .bind(endpoint, clampInt(body.hourUtc, 0, 23, 18), jack?.streak ?? 0, jack?.win ?? null, ayo?.streak ?? 0, ayo?.win ?? null, dice?.streak ?? 0, dice?.win ?? null, now, now)
+    .bind(endpoint, clampInt(body.hourUtc, 0, 23, 18), jack?.streak ?? 0, jack?.win ?? null, ayo?.streak ?? 0, ayo?.win ?? null, dice?.streak ?? 0, dice?.win ?? null, market?.streak ?? 0, market?.win ?? null, now, now)
     .run();
   return { ok: true };
 };
@@ -124,17 +138,14 @@ export const subscribe = async (env: PushEnv, body: PushBody): Promise<{ ok: boo
 export const sync = async (env: PushEnv, body: PushBody): Promise<{ ok: boolean; error?: string }> => {
   const endpoint = String(body.endpoint ?? '');
   const game = String(body.game ?? '');
-  if (!isAllowedPushEndpoint(endpoint, env.PUSH_EXTRA_HOSTS) || (game !== 'jack' && game !== 'ayo' && game !== 'dice')) {
+  if (!isAllowedPushEndpoint(endpoint, env.PUSH_EXTRA_HOSTS) || !isGame(game)) {
     return { ok: false, error: 'Bad request' };
   }
   await ensureTable(env.DB);
   const streak = clampInt(body.streak, 0, 100000, 0);
   const win = isDay(body.lastWinDay) ? body.lastWinDay : null;
-  const sql = game === 'jack'
-    ? 'UPDATE push_subs SET streak_jack = ?, win_jack = ?, updated_at = ? WHERE endpoint = ?'
-    : game === 'ayo'
-      ? 'UPDATE push_subs SET streak_ayo = ?, win_ayo = ?, updated_at = ? WHERE endpoint = ?'
-      : 'UPDATE push_subs SET streak_dice = ?, win_dice = ?, updated_at = ? WHERE endpoint = ?';
+  // `game` is checked against the fixed list above, so building the column names from it is safe.
+  const sql = `UPDATE push_subs SET streak_${game} = ?, win_${game} = ?, updated_at = ? WHERE endpoint = ?`;
   await env.DB.prepare(sql).bind(streak, win, Date.now(), endpoint).run();
   return { ok: true };
 };
@@ -161,21 +172,21 @@ export const composeReminder = (row: SubRow, now = Date.now()): Reminder | null 
   const risks = GAMES
     .map((g) => ({
       g,
-      streak: (g === 'jack' ? row.streak_jack : g === 'ayo' ? row.streak_ayo : row.streak_dice) ?? 0,
-      win: g === 'jack' ? row.win_jack : g === 'ayo' ? row.win_ayo : row.win_dice,
+      streak: row[`streak_${g}` as const] ?? 0,
+      win: row[`win_${g}` as const] ?? null,
     }))
     .filter((r) => atRisk(r.streak, r.win, today))
     .sort((a, b) => b.streak - a.streak);
   if (risks.length === 0) return null;
   const top = risks[0];
   const left = hoursLeft(now);
-  const name = top.g === 'ayo' ? 'Ayò' : top.g === 'dice' ? 'Street Dice' : 'Jack Attack';
+  const name = GAME_NAME[top.g];
   const more = risks.length > 1 ? ' (and your other streak too)' : '';
   return {
     title: '🔥 Keep your streak alive',
     body: `Your ${top.streak}-day ${name} streak ends in ${left}h${more}. Today's daily is waiting.`,
-    url: top.g === 'ayo' ? '/ayo/?source=push' : top.g === 'dice' ? '/dice/?source=push' : '/jackattack/?daily=1&source=push',
-    icon: top.g === 'ayo' ? '/ayo/icon-192.png' : top.g === 'dice' ? '/dice/icon-192.png' : '/icon-192.png',
+    url: GAME_URL[top.g],
+    icon: GAME_ICON[top.g],
   };
 };
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { track, trackOpen } from '../core/analytics';
-import { dailyNumber, shareOrCopy } from '../core/daily';
+import { dailyNumber, getDailyStatus, recordDailyWin, shareOrCopy, streakLabel } from '../core/daily';
+import { ReminderCard, StreakStrip } from './Streak';
 import { bestDeal, letters, makeRounds, money, objectiveLabel, score, settle, utcDate } from './engine';
 import type { Deal, Round } from './engine';
 
@@ -79,6 +80,7 @@ export function MarketApp() {
   const [mode, setMode] = useState<'daily' | 'practice'>('daily');
   const [pick, setPick] = useState<number | null>(null);
   const [shareStatus, setShareStatus] = useState('');
+  const [streakVersion, setStreakVersion] = useState(0);
   const feedback = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLHeadingElement>(null);
   const focusBoard = useRef(false);
@@ -92,6 +94,14 @@ export function MarketApp() {
   const dateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(savedDay);
 
   useEffect(() => { trackOpen('market'); }, []);
+
+  // Playing the whole daily keeps the streak going. Recording is idempotent, so this also covers a daily
+  // that was finished before streaks existed, or on another visit today.
+  const dailyDone = daily.choices.length === 3;
+  useEffect(() => {
+    if (dailyDone && recordDailyWin('market', day).firstWinToday) setStreakVersion((v) => v + 1);
+  }, [dailyDone, day]);
+
 
   useEffect(() => {
     function updateDay() {
@@ -166,7 +176,8 @@ export function MarketApp() {
 
   async function share() {
     const marks = run.choices.map((choice, index) => choice === bestDeal(rounds[index]) ? '✅' : '🟥').join('');
-    const text = `🛒 Market Margin #${dailyNumber(day)} · ${correct}/${rounds.length} best deals\n${marks}\nSame three trades for everyone. Can you beat me?`;
+    const streak = getDailyStatus('market').streak;
+    const text = `🛒 Market Margin #${dailyNumber(day)} · ${correct}/${rounds.length} best deals\n${marks}${streak > 1 ? `\n🔥 ${streakLabel(streak)}` : ''}\nSame three trades for everyone. Can you beat me?`;
     track('share', 'market', 'daily');
     const result = await shareOrCopy(text, 'https://www.jackattackstreets.com/market-margin/', 'Market Margin');
     setShareStatus(result === 'copied' ? 'Result copied.' : result === 'shared' ? 'Shared.' : text);
@@ -199,6 +210,8 @@ export function MarketApp() {
           <span className="date-label">{mode === 'daily' ? dateLabel : 'Random trades'}</span>
         </div>
 
+        {mode === 'daily' && <StreakStrip refreshKey={streakVersion} />}
+
         {finished ? (
           <section className="finish" aria-labelledby="finish-title">
             <p className="eyebrow">Market closed</p>
@@ -217,6 +230,7 @@ export function MarketApp() {
               <button className={mode === 'daily' ? 'secondary' : 'primary'} onClick={restartPractice}>Play new practice round</button>
             </div>
             {mode === 'daily' && <p className="small-note">A new market opens at midnight UTC.</p>}
+            {mode === 'daily' && <ReminderCard context="win" refreshKey={streakVersion} />}
             <p className="share-status" role="status">{shareStatus}</p>
           </section>
         ) : (
@@ -251,6 +265,7 @@ export function MarketApp() {
                   : 'Trading profit adds the cost of unsold stock back to today’s cash result.'}</span>
               </div>;
             })()}
+            {mode === 'daily' && <ReminderCard context="menu" refreshKey={streakVersion} />}
             <div className="action-bar">
               <p>{run.revealed ? `${correct} best deal${correct === 1 ? '' : 's'} found` : 'Choose one deal to reveal the numbers.'}</p>
               <button className="primary" disabled={!run.revealed && pick === null} onClick={currentAction}>
@@ -265,7 +280,7 @@ export function MarketApp() {
           <div>
             <p>Pick the best deal in each of three trades. The goal can change between trades. After each choice, open the receipts to compare your maths.</p>
             <p><b>Cash today</b> is what you took in minus everything you paid out. <b>Trading profit</b> deducts the cost of what sold, plus fees. The game assumes unsold stock is still worth what you paid for it.</p>
-            <p>The daily trades are the same for everyone and your picks are saved in this browser. Practice gives you random trades. There’s no timer.</p>
+            <p>The daily trades are the same for everyone, and your picks and daily streak are saved in this browser. Finishing the daily keeps the streak going. Practice gives you random trades. There’s no timer.</p>
           </div>
         </details>
         <footer><a href="/">Jack Attack Streets</a><a href="/privacy/">Privacy</a></footer>

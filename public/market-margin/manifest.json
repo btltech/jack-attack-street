@@ -1,0 +1,20 @@
+{
+  "id": "/market-margin/",
+  "name": "Market Margin",
+  "short_name": "Market Margin",
+  "description": "The daily trading puzzle. Pick the strongest deal in three trades.",
+  "start_url": "/market-margin/?source=pwa",
+  "scope": "/market-margin/",
+  "display": "standalone",
+  "background_color": "#141b16",
+  "theme_color": "#141b16",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/market-margin/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/market-margin/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/market-margin/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "categories": ["games", "education"],
+  "lang": "en",
+  "dir": "ltr"
+}

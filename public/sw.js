@@ -1,8 +1,8 @@
-// Service worker for Jack Attack Street, Ayò Ọlọ́pọ́n and Street Dice.
+// Service worker for Jack Attack Street, Ayò Ọlọ́pọ́n, Street Dice and Market Margin.
 //  1. Network-first caching, so the shell still opens offline.
 //  2. Web Push streak reminders: a push carries no payload; we ask the Worker what to say.
-const CACHE_NAME = 'jack-attack-v3';
-const SHELL_URLS = ['/', '/jackattack/', '/ayo/', '/dice/', '/icon-192.png', '/icon-512.png', '/ayo/icon-192.png', '/dice/icon-192.png'];
+const CACHE_NAME = 'jack-attack-v4';
+const SHELL_URLS = ['/', '/jackattack/', '/ayo/', '/dice/', '/market-margin/', '/icon-192.png', '/icon-512.png', '/ayo/icon-192.png', '/dice/icon-192.png', '/market-margin/icon-192.png'];
 const API_BASE = 'https://jack-attack-rooms.btltech.workers.dev';
 
 self.addEventListener('install', (event) => {
