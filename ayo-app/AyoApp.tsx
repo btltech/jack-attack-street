@@ -13,8 +13,10 @@ import {
   createAyoOnlineRoom, getAyoInviteUrl, useAyoOnlineRoom,
 } from './online';
 import { loadNickname, saveNickname } from '../core/online';
+import { track, trackOpen } from '../core/analytics';
 import { recordDailyWin, getDailyStatus, utcDay, dailyNumber, shareOrCopy, streakLabel } from '../core/daily';
 import DailyStreakBadge from '../components/DailyStreakBadge';
+import AyoTutorial, { hasSeenTutorial } from './AyoTutorial';
 
 interface AyoProfile {
   xp: number;
@@ -62,6 +64,13 @@ const AyoApp: React.FC = () => {
   const [muted, setMuted] = useState<boolean>(() => isAyoMuted());
   const [profile, setProfile] = useState<AyoProfile>(() => loadProfile());
   const [showGuide, setShowGuide] = useState<boolean>(false);
+  // First visit: open the hands-on tutorial once (not for invite links or players who already have games on record).
+  const [showTutorial, setShowTutorial] = useState<boolean>(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('room')) return false;
+    } catch { /* ignore */ }
+    return !hasSeenTutorial() && loadProfile().games === 0;
+  });
   const [showSkins, setShowSkins] = useState<boolean>(false);
 
   // Solo / Local / Challenge game state
@@ -100,6 +109,7 @@ const AyoApp: React.FC = () => {
 
   // Deep-link ?room=XXXX check
   useEffect(() => {
+    trackOpen('ayo');
     const params = new URLSearchParams(window.location.search);
     const code = params.get('room')?.trim().toUpperCase();
     if (code && /^[A-Z0-9]{4,6}$/.test(code)) {
@@ -166,6 +176,8 @@ const AyoApp: React.FC = () => {
     setDisplayPits([...init.pits]);
     setDisplayScores([init.scores[0], init.scores[1]]);
     setScreen('game');
+    track(challenge?.daily ? 'daily_start' : 'game_start', 'ayo',
+      challenge?.daily ? 'daily' : passPlay ? 'pass-play' : challenge ? 'puzzle' : rules);
   };
 
   const executeMove = (state: AyoState, pit: number) => {
@@ -283,7 +295,9 @@ const AyoApp: React.FC = () => {
         if (humanWon) playAyoWinSound();
         else playAyoGoodGameSound();
         if (!isPassAndPlay) awardXp(nextState.winner === 0);
+        track('game_end', 'ayo', `${activeChallenge?.daily ? 'daily' : isPassAndPlay ? 'pass-play' : 'normal'}-${nextState.winner === 0 ? 'win' : nextState.winner === 'draw' ? 'draw' : 'loss'}`);
         if (activeChallenge?.daily && activeChallenge.day && nextState.winner === 0) {
+          track('daily_win', 'ayo');
           const res = recordDailyWin('ayo', activeChallenge.day);
           setDailyResult({ streak: res.streak, firstWinToday: res.firstWinToday });
           setDailyStreakVersion((v) => v + 1);
@@ -927,6 +941,7 @@ const AyoApp: React.FC = () => {
 
     const handleShareResult = async () => {
       playAyoClick();
+      track('share', 'ayo', activeChallenge?.daily ? 'daily' : 'normal');
       if (activeChallenge?.daily && !isPassAndPlay) {
         const num = dailyNumber(activeChallenge.day);
         const humanMoves = Math.ceil(gameState.moveCount / 2);
@@ -1108,6 +1123,15 @@ const AyoApp: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-green-950 to-slate-950 text-white flex flex-col relative overflow-x-hidden">
       {showGuide && renderPictorialGuide()}
       {showSkins && renderSkinsModal()}
+      {showTutorial && (
+        <AyoTutorial
+          onClose={() => setShowTutorial(false)}
+          onPlay={(choice) => {
+            setShowTutorial(false);
+            if (choice === 'daily') startLocalGame(false, dailyPuzzle);
+          }}
+        />
+      )}
 
       {/* Top Navigation */}
       <header className="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-2 flex items-center justify-between gap-3 flex-wrap">
@@ -1123,6 +1147,12 @@ const AyoApp: React.FC = () => {
             className="bg-black/40 hover:bg-black/60 text-amber-200 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-bold border border-amber-400/40"
           >
             {currentSkin.emoji} Skins
+          </button>
+          <button
+            onClick={() => { playAyoClick(); setShowTutorial(true); }}
+            className="bg-black/40 hover:bg-black/60 text-emerald-100 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-bold border border-emerald-400/40"
+          >
+            🎓 Learn in 60s
           </button>
           <button
             onClick={() => { playAyoClick(); setShowGuide(true); }}
