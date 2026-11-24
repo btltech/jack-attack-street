@@ -7,7 +7,7 @@ import {
 } from './engine';
 import {
   playSeedClack, playSeedScoop, playCaptureSound, playAyoClick, playAyoWinSound,
-  playAyoGoodGameSound, setAyoMuted, isAyoMuted,
+  playAyoGoodGameSound, playYourTurn, setAyoMuted, isAyoMuted,
 } from './sounds';
 import {
   createAyoOnlineRoom, getAyoInviteUrl, useAyoOnlineRoom,
@@ -19,6 +19,7 @@ import DailyStreakBadge from '../components/DailyStreakBadge';
 import StreakReminder from '../components/StreakReminder';
 import { syncReminders } from '../core/pwa';
 import AyoTutorial, { hasSeenTutorial } from './AyoTutorial';
+import { flySeedsToScore } from './effects';
 
 interface AyoProfile {
   xp: number;
@@ -84,6 +85,11 @@ const AyoApp: React.FC = () => {
   const [handPit, setHandPit] = useState<number | null>(null);
   const [handPhase, setHandPhase] = useState<'idle' | 'scoop' | 'glide' | 'drop' | 'capture'>('idle');
   const [droppingSeedKey, setDroppingSeedKey] = useState<number>(0);
+  // Bumped on every animation step; remounts the little impact rings so each step plays its own.
+  const [stepTick, setStepTick] = useState<number>(0);
+  const [relayN, setRelayN] = useState<number>(0);
+  const [animLong, setAnimLong] = useState<boolean>(false);
+  const finishMoveRef = useRef<(() => void) | null>(null);
   const [seedsInHand, setSeedsInHand] = useState<number>(0);
   const [capturedPits, setCapturedPits] = useState<number[]>([]);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
@@ -194,10 +200,17 @@ const AyoApp: React.FC = () => {
     setIsAnimating(true);
     clearAnimTimers();
 
-    // Deliberate, calm wooden-board sowing rhythm with visible hand gliding & dropping 1 seed at a time
+    // Deliberate, calm wooden-board sowing rhythm with visible hand gliding & dropping 1 seed at a time.
+    // Long relay chains speed up as they go, so a 40-seed chain doesn't make you wait half a minute.
     const baseDelay = sowPace === 'slow' ? 920 : sowPace === 'brisk' ? 380 : 680;
-    const glideMs = Math.round(baseDelay * 0.48);
     const initialScoopMs = sowPace === 'slow' ? 620 : sowPace === 'brisk' ? 260 : 460;
+    const dropTotal = steps.filter((st) => st.kind === 'drop').length;
+    const lastDropIdx = steps.reduce((acc, st, i) => (st.kind === 'drop' ? i : acc), -1);
+    const speedAt = (dropNo: number) => Math.max(0.42, 1 - Math.max(0, dropNo - 7) * 0.022);
+    const human = (seat: number | undefined) => isPassAndPlay || seat === 0;
+
+    setAnimLong(dropTotal > 9);
+    setRelayN(0);
 
     // Step 0: Hand scoops all seeds out of the starting pit
     const initialPicked = state.pits[pit];
@@ -207,15 +220,23 @@ const AyoApp: React.FC = () => {
     setHandPhase('scoop');
     setAnimatingPit(pit);
     setAnimStepKind('scoop');
+    setStepTick((k) => k + 1);
     setDisplayPits(pickedPits);
     setSeedsInHand(initialPicked);
     setCapturedPits([]);
-    playSeedScoop(initialPicked);
+    playSeedScoop(initialPicked, false);
 
     let elapsed = initialScoopMs;
+    let dropNo = 0;
+    let relays = 0;
+    let finished = false;
 
     steps.forEach((step, i) => {
       if (step.kind === 'drop') {
+        const speed = speedAt(dropNo);
+        const stepMs = baseDelay * speed;
+        const glideMs = Math.round(stepMs * 0.48);
+        dropNo++;
         // Sub-phase A: Hand glides smoothly to the next pit
         const glideTid = window.setTimeout(() => {
           setHandPit(step.activePit);
@@ -229,18 +250,21 @@ const AyoApp: React.FC = () => {
           setHandPit(step.activePit);
           setHandPhase('drop');
           setDroppingSeedKey((k) => k + 1);
+          setStepTick((k) => k + 1);
           setDisplayPits(step.pits);
           setDisplayScores(step.scores);
           setAnimatingPit(step.activePit);
           setAnimStepKind('drop');
           setSeedsInHand(step.seedsInHand);
-          playSeedClack(i, step.pits[step.activePit]);
+          playSeedClack(i, step.pits[step.activePit], step.activePit, i === lastDropIdx);
         }, elapsed + glideMs);
         animTimersRef.current.push(dropTid);
 
-        elapsed += baseDelay;
+        elapsed += stepMs;
       } else if (step.kind === 'scoop') {
         // Relay scoop: hand dips into the non-empty pit and lifts all its seeds
+        relays++;
+        const relayNo = relays;
         const scoopTid = window.setTimeout(() => {
           setHandPit(step.activePit);
           setHandPhase('scoop');
@@ -248,40 +272,53 @@ const AyoApp: React.FC = () => {
           setDisplayScores(step.scores);
           setAnimatingPit(step.activePit);
           setAnimStepKind('scoop');
+          setStepTick((k) => k + 1);
+          setRelayN(relayNo);
           setSeedsInHand(step.seedsInHand);
           setCapturedPits([]);
-          playSeedScoop(step.seedsInHand);
+          playSeedScoop(step.seedsInHand, true);
         }, elapsed);
         animTimersRef.current.push(scoopTid);
 
-        elapsed += baseDelay + 420;
+        elapsed += baseDelay * speedAt(dropNo) + 380;
       } else {
         // Capture highlight + talking-drum audio (traditional opposite-pit, 4-seed, or Oware 2-3)
         const capTid = window.setTimeout(() => {
           setHandPit(step.activePit);
           setHandPhase('capture');
           setDisplayPits(step.pits);
-          setDisplayScores(step.scores);
           setAnimatingPit(step.activePit);
           setAnimStepKind('capture');
+          setStepTick((k) => k + 1);
           setSeedsInHand(step.seedsInHand);
           if (step.capturedPits && step.capturedPits.length > 0) {
             setCapturedPits(step.capturedPits);
-            playCaptureSound(step.capturedCount || 4);
+            const taker = step.capturedBy;
+            playCaptureSound(step.capturedCount || 4, human(taker));
+            flySeedsToScore(step.capturedPits, step.capturedCount || 4, taker ?? 0, currentSkin);
+            // The score ticks up as the seeds land, not before.
+            const scoreTid = window.setTimeout(() => setDisplayScores(step.scores), 560);
+            animTimersRef.current.push(scoreTid);
             const capLabel = step.capturedBy !== undefined
               ? `${names[step.capturedBy]} +${step.capturedCount}`
               : `+${step.capturedCount} Captured`;
             setCaptureFlash(capLabel);
-            window.setTimeout(() => setCaptureFlash(null), 1300);
+            const flashTid = window.setTimeout(() => setCaptureFlash(null), 1300);
+            animTimersRef.current.push(flashTid);
+          } else {
+            setDisplayScores(step.scores);
           }
         }, elapsed);
         animTimersRef.current.push(capTid);
 
-        elapsed += baseDelay + 540;
+        elapsed += baseDelay * 0.8 + 700;
       }
     });
 
-    const endTid = window.setTimeout(() => {
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      finishMoveRef.current = null;
       setGameState(nextState);
       setDisplayPits([...nextState.pits]);
       setDisplayScores([nextState.scores[0], nextState.scores[1]]);
@@ -291,6 +328,8 @@ const AyoApp: React.FC = () => {
       setHandPhase('idle');
       setSeedsInHand(0);
       setCapturedPits([]);
+      setAnimLong(false);
+      setRelayN(0);
       setIsAnimating(false);
 
       if (nextState.winner !== null) {
@@ -306,12 +345,26 @@ const AyoApp: React.FC = () => {
           setDailyResult({ streak: res.streak, firstWinToday: res.firstWinToday });
           setDailyStreakVersion((v) => v + 1);
         }
-      } else if (captured >= 4) {
-        setCaptureFlash(`Master Capture +${captured}`);
-        window.setTimeout(() => setCaptureFlash(null), 1300);
+      } else {
+        if (captured >= 4) {
+          setCaptureFlash(`Master Capture +${captured}`);
+          window.setTimeout(() => setCaptureFlash(null), 1300);
+        }
+        // Tell the player the board is theirs again.
+        if (!isPassAndPlay && nextState.turn === 0) window.setTimeout(playYourTurn, 120);
       }
-    }, elapsed + 380);
+    };
+    finishMoveRef.current = finish;
+    const endTid = window.setTimeout(finish, elapsed + 380);
     animTimersRef.current.push(endTid);
+  };
+
+  /** Jump straight to the end of the move being animated (for very long relay chains). */
+  const skipAnimation = () => {
+    const fin = finishMoveRef.current;
+    if (!fin) return;
+    clearAnimTimers();
+    fin();
   };
 
   // AI Turn trigger (calm pause before AI begins sowing)
@@ -418,7 +471,11 @@ const AyoApp: React.FC = () => {
             <span>{topLabel}</span>
             {topActive && <span className="animate-pulse">⏳</span>}
           </div>
-          <div className="bg-black/50 border border-amber-400/40 px-4 py-1.5 rounded-full font-display font-black text-amber-300 text-sm sm:text-base tabular-nums">
+          <div
+            key={`top-score-${topScore}`}
+            data-score={flipPerspective ? 0 : 1}
+            className={`bg-black/50 border border-amber-400/40 px-4 py-1.5 rounded-full font-display font-black text-amber-300 text-sm sm:text-base tabular-nums ${isAnimating ? 'ayo-pop' : ''}`}
+          >
             Captured: {topScore} / 25
           </div>
         </div>
@@ -481,6 +538,14 @@ const AyoApp: React.FC = () => {
                     className="relative flex flex-col items-center transition-transform duration-200"
                     style={{ transform: handTransform }}
                   >
+                    {relayN > 0 && (
+                      <div
+                        key={`relay-${relayN}`}
+                        className="ayo-pop absolute -top-5 left-0 right-0 mx-auto w-max bg-emerald-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full border border-white shadow"
+                      >
+                        ↻ Relay{relayN > 1 ? ` ×${relayN}` : ''}
+                      </div>
+                    )}
                     <div className="relative bg-slate-950/90 border-2 border-amber-400 rounded-2xl px-2.5 py-1.5 shadow-[0_14px_28px_rgba(0,0,0,0.75)] flex items-center gap-1.5">
                       <span className="text-xl sm:text-2xl leading-none select-none">
                         {handPhase === 'scoop' ? '✊' : '🫳'}
@@ -531,13 +596,31 @@ const AyoApp: React.FC = () => {
                 <button
                   key={pitIdx}
                   type="button"
+                  data-pit={pitIdx}
                   disabled={!isLegal}
                   onClick={() => isLegal && onPitClick(pitIdx)}
                   aria-label={`${label} pit ${(pitIdx % 6) + 1}, ${count} seeds${isLegal ? ', playable' : ''}`}
                   className={`relative aspect-square rounded-full flex items-center justify-center transition-all duration-200 border-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 ${isVertical ? 'w-full max-w-[92px] mx-auto' : ''} ${stateClass}`}
                 >
-                  {renderSeeds(count)}
-                  <span className={`absolute ${badgePos} border font-display font-black text-xs sm:text-sm min-w-[26px] h-[26px] px-1.5 rounded-full flex items-center justify-center shadow tabular-nums ${badgeColor}`}>
+                  {isActive && animStepKind && (
+                    <span
+                      key={`ring-${stepTick}`}
+                      aria-hidden="true"
+                      className={`pointer-events-none absolute inset-0 rounded-full ${
+                        animStepKind === 'scoop' ? 'ayo-pull' : animStepKind === 'capture' ? 'ayo-burst' : 'ayo-ripple'
+                      }`}
+                    />
+                  )}
+                  <span
+                    key={`seeds-${isActive && animStepKind === 'drop' ? stepTick : 'idle'}`}
+                    className={`absolute inset-0 ${isActive && animStepKind === 'drop' ? 'ayo-thump' : ''}`}
+                  >
+                    {renderSeeds(count)}
+                  </span>
+                  <span
+                    key={`badge-${count}`}
+                    className={`absolute ${badgePos} border font-display font-black text-xs sm:text-sm min-w-[26px] h-[26px] px-1.5 rounded-full flex items-center justify-center shadow tabular-nums ${badgeColor} ${isActive ? 'ayo-pop' : ''}`}
+                  >
                     {count}
                   </span>
                 </button>
@@ -589,7 +672,11 @@ const AyoApp: React.FC = () => {
             <span>{bottomLabel}</span>
             {bottomActive && <span>◀ Your Move</span>}
           </div>
-          <div className="bg-black/50 border border-emerald-400/50 px-4 py-1.5 rounded-full font-display font-black text-emerald-300 text-sm sm:text-base tabular-nums">
+          <div
+            key={`bottom-score-${bottomScore}`}
+            data-score={flipPerspective ? 1 : 0}
+            className={`bg-black/50 border border-emerald-400/50 px-4 py-1.5 rounded-full font-display font-black text-emerald-300 text-sm sm:text-base tabular-nums ${isAnimating ? 'ayo-pop' : ''}`}
+          >
             Captured: {bottomScore} / 25
           </div>
         </div>
@@ -884,7 +971,7 @@ const AyoApp: React.FC = () => {
             g.scores,
             legal,
             isMyTurn,
-            (pit) => { playSeedClack(pit); online.sendMove(pit); },
+            (pit) => { playSeedClack(0, 1, pit); online.sendMove(pit); },
             flip,
             `${oppSeat?.name || 'Opponent'} (🏆 ${oppSeat?.wins ?? 0})`,
             `${meSeat?.name || 'You'} (🏆 ${meSeat?.wins ?? 0})`,
@@ -1026,14 +1113,23 @@ const AyoApp: React.FC = () => {
 
         {/* Board Area */}
         <main className="my-auto py-4">
-          <div aria-live="polite" className="text-center mb-4 flex items-center justify-center gap-2.5 flex-wrap">
-            <span className="inline-block bg-black/50 border border-white/20 px-5 py-2 rounded-full text-sm sm:text-base font-bold text-amber-100 shadow-lg">
+          <div className="text-center mb-4 flex items-center justify-center gap-2.5 flex-wrap">
+            <span aria-live="polite" className="inline-block bg-black/50 border border-white/20 px-5 py-2 rounded-full text-sm sm:text-base font-bold text-amber-100 shadow-lg">
               {isAnimating
                 ? animStepKind === 'scoop'
                   ? `✋ Scooped ${seedsInHand} seed${seedsInHand === 1 ? '' : 's'} — relay sowing...`
                   : `🌱 Sowing... (${seedsInHand} left in hand)`
                 : gameState.lastAction}
             </span>
+            {isAnimating && animLong && (
+              <button
+                type="button"
+                onClick={skipAnimation}
+                className="bg-black/50 hover:bg-black/70 border border-amber-400/60 text-amber-200 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-bold"
+              >
+                ⏩ Skip
+              </button>
+            )}
           </div>
 
           {renderBoard(
@@ -1052,7 +1148,24 @@ const AyoApp: React.FC = () => {
 
         {/* Uplifting End-of-Round Overlay */}
         {gameState.winner !== null && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[90] p-4">
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[90] p-4 overflow-hidden">
+            {humanWon && (
+              <div aria-hidden="true" className="absolute inset-0 pointer-events-none">
+                {Array.from({ length: 26 }, (_, i) => (
+                  <span
+                    key={i}
+                    className="ayo-confetti"
+                    style={{
+                      left: `${(i * 37) % 100}%`,
+                      animationDelay: `${(i % 9) * 0.12}s`,
+                      animationDuration: `${2.2 + (i % 5) * 0.4}s`,
+                      background: currentSkin.gradient,
+                      border: `1.5px solid ${currentSkin.border}`,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
             <div className="bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-950 border-4 border-amber-400 rounded-[2.2rem] p-7 sm:p-8 max-w-md w-full text-center shadow-2xl">
               <div className="text-7xl mb-3 animate-bounce">
                 {isPassAndPlay ? '🏆' : humanWon ? '🏆' : gameState.winner === 'draw' ? '🤝' : closeMatch ? '🤝' : '🙌'}
