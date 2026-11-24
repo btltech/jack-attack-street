@@ -55,3 +55,17 @@ npm run stats
 ```
 
 The Worker must be redeployed (`cd worker && npx wrangler deploy`) before the site's events are accepted.
+
+## Install and streak reminders
+
+Both games are installable (`public/jackattack-manifest.json`, `public/ayo/manifest.json`, one service worker at `/sw.js`). After a player wins a daily, or opens the menu having won one before, they are offered **Install app** and **Remind me**. Reminders are Web Push: the app tells the Worker the subscription, the player's local 7pm (as a UTC hour) and their streaks; the Worker's cron (every 10 minutes) sends an empty push once a day to subscribers whose streak is alive but not yet extended today, and the service worker asks `/api/push/message` what to show. Pushes carry no payload, so no subscriber keys are stored. Subscriptions live in the `push_subs` D1 table (created on first use). On iPhone/iPad it only works once the game is added to the Home Screen.
+
+One-time setup (the private key never goes in git):
+
+```bash
+node scripts/vapid.mjs                 # creates .secrets/vapid-private.json and prints the public key
+cd worker && npx wrangler secret put VAPID_PRIVATE_JWK < ../.secrets/vapid-private.json
+npx wrangler deploy
+```
+
+The public key is committed in `core/pwa.ts` and `worker/wrangler.toml` (they must match). Do not regenerate the key after launch: that silently cancels every subscription. Keep a backup of `.secrets/vapid-private.json`.

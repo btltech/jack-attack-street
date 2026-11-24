@@ -2,8 +2,8 @@
   "name": "Jack Attack Street",
   "short_name": "Jack Attack",
   "description": "Fast-paced street card game with Black Jack +5s, stackable 2s, online rooms & daily challenges.",
-  "start_url": "/jackattack/",
-  "scope": "/",
+  "start_url": "/jackattack/?source=pwa",
+  "scope": "/jackattack/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#1a1a2e",
@@ -21,5 +21,6 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "id": "/jackattack/"
 }

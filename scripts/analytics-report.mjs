@@ -62,3 +62,14 @@ section('Daily players who came back the next day (2+ daily days)', `
   SELECT game, COUNT(*) AS people FROM (
     SELECT game, anon FROM events WHERE event = 'daily_start' GROUP BY game, anon HAVING COUNT(DISTINCT day) >= 2
   ) GROUP BY game`);
+
+section('Install and reminders, last 30 days (distinct people)', `
+  SELECT event, COUNT(DISTINCT anon) AS people
+  FROM events WHERE day >= date('now', '-30 day')
+    AND event IN ('install_accept', 'install_dismiss', 'reminder_on', 'reminder_off', 'reminder_denied')
+  GROUP BY event ORDER BY event`);
+
+section('How people arrive, last 14 days (push = tapped a streak reminder, pwa = installed app, blank = browser tab)', `
+  SELECT day, game, CASE WHEN detail = '' THEN 'browser' ELSE detail END AS via, COUNT(DISTINCT anon) AS people
+  FROM events WHERE event = 'app_open' AND day >= date('now', '-14 day')
+  GROUP BY day, game, via ORDER BY day DESC, game, via`);

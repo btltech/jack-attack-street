@@ -1,6 +1,9 @@
-// Network-first PWA service worker for Classic Street Games / Jack Attack Street
-const CACHE_NAME = 'jack-attack-v1';
-const SHELL_URLS = ['/', '/jackattack/', '/icon-192.png', '/icon-512.png'];
+// Service worker for Jack Attack Street + Ayò Ọlọ́pọ́n.
+//  1. Network-first caching, so the shell still opens offline.
+//  2. Web Push streak reminders: a push carries no payload; we ask the Worker what to say.
+const CACHE_NAME = 'jack-attack-v2';
+const SHELL_URLS = ['/', '/jackattack/', '/ayo/', '/icon-192.png', '/icon-512.png', '/ayo/icon-192.png'];
+const API_BASE = 'https://jack-attack-rooms.btltech.workers.dev';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -35,4 +38,50 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => caches.match(req))
   );
+});
+
+const FALLBACK = {
+  title: "Today's daily is ready",
+  body: 'A new daily is waiting for you.',
+  url: '/?source=push',
+  icon: '/icon-192.png',
+};
+
+// Browsers require every push to show a notification, so always show one, even if the Worker is unreachable.
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    let msg = FALLBACK;
+    try {
+      const sub = await self.registration.pushManager.getSubscription();
+      if (sub) {
+        const res = await fetch(API_BASE + '/api/push/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        if (res.ok) msg = { ...FALLBACK, ...(await res.json()) };
+      }
+    } catch (e) {
+      // fall back to the generic text
+    }
+    await self.registration.showNotification(msg.title, {
+      body: msg.body,
+      icon: msg.icon,
+      badge: '/icon-192.png',
+      tag: 'daily-streak', // a newer reminder replaces an older one instead of stacking
+      data: { url: msg.url },
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin);
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Reuse an open tab on the same game if there is one.
+    const sameGame = wins.find((w) => new URL(w.url).pathname === target.pathname);
+    if (sameGame && 'focus' in sameGame) return sameGame.focus();
+    return self.clients.openWindow(target.href);
+  })());
 });

@@ -20,3 +20,11 @@ new_sqlite_classes = ["AyoRoom"]
 binding = "DB"
 database_name = "jack-attack-daily"
 database_id = "b31cbc78-36bb-4446-8710-8a306540dce4"
+
+# Streak reminders: every 10 minutes, send due web-push reminders (worker/src/push.ts).
+[triggers]
+crons = ["*/10 * * * *"]
+
+[vars]
+# Public half of the VAPID key (scripts/vapid.mjs). The private half is the secret VAPID_PRIVATE_JWK.
+VAPID_PUBLIC_KEY = "BJSneq6BgO-aAu7WM1HgsEaM_xlUoIqzIoUyNQV5EEnGH7BfKjXnpPS9OpGhFFGPmz0wOg45qQNLmzLxHuC-YP4"

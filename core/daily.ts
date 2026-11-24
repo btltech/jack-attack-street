@@ -15,6 +15,8 @@ export interface DailyStatus {
   /** Total daily wins ever recorded. */
   wins: number;
   solvedToday: boolean;
+  /** UTC day of the most recent recorded win, if any. */
+  lastWinDay: string | null;
 }
 
 interface DailyRecord {
@@ -66,7 +68,7 @@ const toStatus = (rec: DailyRecord, today: string): DailyStatus => {
   const solvedToday = rec.lastWinDay === today;
   // The streak survives until a whole day passes without a win.
   const alive = solvedToday || rec.lastWinDay === shiftDay(today, -1);
-  return { streak: alive ? rec.streak : 0, best: rec.best, wins: rec.wins, solvedToday };
+  return { streak: alive ? rec.streak : 0, best: rec.best, wins: rec.wins, solvedToday, lastWinDay: rec.lastWinDay };
 };
 
 export const getDailyStatus = (game: DailyGame, today: string = utcDay()): DailyStatus =>
