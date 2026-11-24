@@ -260,12 +260,8 @@
       /* Game Showcase Grid */
       .games-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 24px;
-      }
-      @media (max-width: 1000px) {
-        .games-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .game-card-wide { grid-column: 1 / -1; }
       }
 
       .game-card {
@@ -313,6 +309,9 @@
         background:
           radial-gradient(circle at 50% 60%, rgba(244, 63, 94, 0.22), transparent 65%),
           linear-gradient(160deg, #2a0a14 0%, #14050a 100%);
+      }
+      .stage-market {
+        background: linear-gradient(100deg, #101a1788, transparent), url('/assets/market-counter.webp') center 57% / cover, #283321;
       }
       .new-badge {
         position: absolute;
@@ -600,7 +599,7 @@
             </div>
           </a>
 
-          <a href="/dice/" class="game-card game-card-wide">
+          <a href="/dice/" class="game-card">
             <div class="card-stage stage-dice" aria-hidden="true">
               <span class="new-badge">NEW · DAILY</span>
               <div class="mini-dice">
@@ -621,6 +620,18 @@
               <div class="card-footer">
                 <span class="card-cta">Play Street Dice →</span>
                 <span class="card-tag">Solo · Daily · Leaderboard</span>
+              </div>
+            </div>
+          </a>
+          <a href="/market-margin/" class="game-card">
+            <div class="card-stage stage-market" aria-hidden="true"></div>
+            <div class="card-body">
+              <div class="card-meta">Daily Trading Puzzle · Three Deals Per Round</div>
+              <h2 class="card-title">Market Margin</h2>
+              <p class="card-desc">Run the numbers at a London market stall. Pick the strongest trade, then check the receipts to see where the money went.</p>
+              <div class="card-footer">
+                <span class="card-cta">Play Market Margin →</span>
+                <span class="card-tag">Solo · Daily · Practice</span>
               </div>
             </div>
           </a>

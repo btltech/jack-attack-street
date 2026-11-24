@@ -35,4 +35,7 @@
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
+  <url>
+    <loc>https://www.jackattackstreets.com/market-margin/</loc>
+  </url>
 </urlset>
