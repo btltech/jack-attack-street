@@ -43,7 +43,7 @@ const ALLOWED_EVENTS = new Set([
   'tutorial_start', 'tutorial_step', 'tutorial_done', 'tutorial_skip',
   'install_accept', 'install_dismiss', 'reminder_on', 'reminder_off', 'reminder_denied',
 ]);
-const ALLOWED_GAMES = new Set(['jack', 'ayo', 'dice', 'site']);
+const ALLOWED_GAMES = new Set(['jack', 'ayo', 'dice', 'market', 'site']);
 
 // Created on first use so deploying needs no manual migration (worker/schema.sql documents it).
 let eventsTableReady = false;

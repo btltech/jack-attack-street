@@ -6,7 +6,7 @@
 // localStorage.setItem('ja-analytics-off', '1').
 import { ROOMS_API_BASE } from './online';
 
-export type AnalyticsGame = 'jack' | 'ayo' | 'dice' | 'site';
+export type AnalyticsGame = 'jack' | 'ayo' | 'dice' | 'market' | 'site';
 
 // Keep in sync with ALLOWED_EVENTS in worker/src/index.ts.
 export type AnalyticsEvent =
