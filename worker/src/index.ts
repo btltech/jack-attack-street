@@ -32,6 +32,31 @@ const isAcceptableDay = (d: string): boolean => {
   return Number.isFinite(t) && Math.abs(t - today) <= 86_400_000;
 };
 
+// --- Usage events (anonymous; see core/analytics.ts). Keep in sync with AnalyticsEvent there. ---
+const ALLOWED_EVENTS = new Set([
+  'app_open', 'game_start', 'game_end', 'daily_start', 'daily_win', 'share',
+  'tutorial_start', 'tutorial_step', 'tutorial_done', 'tutorial_skip',
+]);
+const ALLOWED_GAMES = new Set(['jack', 'ayo', 'site']);
+
+// Created on first use so deploying needs no manual migration (worker/schema.sql documents it).
+let eventsTableReady = false;
+const ensureEventsTable = async (db: D1Database): Promise<void> => {
+  if (eventsTableReady) return;
+  await db.batch([
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS events (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         day TEXT NOT NULL, ts INTEGER NOT NULL, anon TEXT NOT NULL, game TEXT NOT NULL,
+         event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', cohort TEXT NOT NULL
+       )`
+    ),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_events_day ON events (day, event)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_events_anon ON events (anon, day)'),
+  ]);
+  eventsTableReady = true;
+};
+
 interface DailyScoreRow {
   guest_id: string;
   name: string;
@@ -208,6 +233,38 @@ export default {
         bestDurationMs: bestDuration,
         ...board,
       }, 200, origin);
+    }
+
+    // Anonymous usage events (see core/analytics.ts). Sent as text/plain so sendBeacon needs no preflight.
+    if (url.pathname === '/api/event' && request.method === 'POST') {
+      // Browsers from other websites are refused; non-browser callers (no Origin) are accepted but validated.
+      if (origin && !isAllowedOrigin(origin)) return new Response(null, { status: 403 });
+      const raw = (await request.text()).slice(0, 1024);
+      let body: { event?: unknown; game?: unknown; detail?: unknown; anon?: unknown; cohort?: unknown };
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        return new Response(null, { status: 204 });
+      }
+      if (!body || typeof body !== 'object') return new Response(null, { status: 204 });
+      const event = String(body.event ?? '');
+      const game = String(body.game ?? '');
+      const anon = String(body.anon ?? '').slice(0, 64);
+      const cohort = String(body.cohort ?? '');
+      const detail = String(body.detail ?? '').replace(/[^\w .:+-]/g, '').slice(0, 32);
+      if (!ALLOWED_EVENTS.has(event) || !ALLOWED_GAMES.has(game) || anon.length < 8 || !isValidDay(cohort)) {
+        return new Response(null, { status: 204 });
+      }
+      try {
+        await ensureEventsTable(env.DB);
+        await env.DB
+          .prepare('INSERT INTO events (day, ts, anon, game, event, detail, cohort) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .bind(getUtcDay(), Date.now(), anon, game, event, detail, cohort)
+          .run();
+      } catch {
+        // Analytics must never produce errors for players.
+      }
+      return new Response(null, { status: 204 });
     }
 
     // Browsers always send Origin on WebSocket upgrades: refuse other websites. Non-browser

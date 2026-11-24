@@ -43,3 +43,15 @@ npx wrangler deploy    # production
 The Worker only sends CORS headers to an allow-list of origins (the production site, GitHub Pages,
 and `localhost` / `127.0.0.1` for development). To add another origin, edit `ALLOWED_ORIGINS` in
 `worker/src/index.ts`.
+
+## Usage analytics
+
+Both games send a few anonymous events (opened, game started/finished, daily won, shared, tutorial progress) to the Worker's `/api/event`, which stores them in the `events` table of the D1 database (created automatically on first use; `worker/schema.sql` is the reference copy). Each browser gets a random id that is separate from the guest id used for scores and rooms. No IP address, name or account is stored. Do Not Track is honoured, and `localStorage.setItem('ja-analytics-off', '1')` opts a browser out. Local development hosts are skipped unless `ja-analytics-debug` is `1`.
+
+Read the numbers (daily players, day-1/day-7 return, funnel, tutorial drop-off) with:
+
+```bash
+npm run stats
+```
+
+The Worker must be redeployed (`cd worker && npx wrangler deploy`) before the site's events are accepted.

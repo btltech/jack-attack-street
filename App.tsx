@@ -24,6 +24,7 @@ import ImpactBanner, { ImpactEvent } from './components/ImpactBanner';
 import { createOnlineRoom, loadNickname, saveNickname } from './core/online';
 import { getDailySeed, getTodayUtcKey, submitDailyScore } from './core/dailyLeaderboard';
 import { recordDailyWin, dailyNumber, streakLabel } from './core/daily';
+import { track, trackOpen } from './core/analytics';
 import DailyStreakBadge from './components/DailyStreakBadge';
 import { getTodaysChallenge, getDailyProgress, checkChallengeCompletion } from './core/challenges';
 import { getCurrentTheme, CardTheme, unlockTheme, isThemeUnlocked } from './core/themes';
@@ -210,14 +211,17 @@ const App: React.FC = () => {
   useEffect(() => {
     migrateOldStats();
     setStats(loadStats());
+    trackOpen('jack');
   }, []);
 
   // Update stats after game completion
   const updateStats = (isWin: boolean, state: GameState) => {
     const duration = Date.now() - gameStartTimeRef.current;
     setLastMatchDurationMs(duration);
+    track('game_end', 'jack', `${isDailySeedRun ? 'daily' : 'normal'}-${isWin ? 'win' : 'loss'}`);
 
     if (isWin && isDailySeedRun) {
+      track('daily_win', 'jack');
       const today = getTodayUtcKey();
       // Streak is saved on this device straight away, so it counts even if the score upload fails.
       const streakRes = recordDailyWin('jack', today);
@@ -415,6 +419,7 @@ const App: React.FC = () => {
     const initialState = createNewGame(numPlayers, difficulty, gameMode, undefined, dailySeed);
     setGameState(initialState);
     setIsDailySeedRun(Boolean(dailySeed));
+    track(dailySeed ? 'daily_start' : 'game_start', 'jack', dailySeed ? 'daily' : `${gameMode}-${difficulty}`);
     setDailyStreakInfo(null);
     setDailyRankResult(null);
     setErrorMsg(null);
@@ -1257,6 +1262,7 @@ const App: React.FC = () => {
 
     const handleShareResult = async () => {
       playClickSound();
+      track('share', 'jack', isDailySeedRun ? 'daily' : 'normal');
       try {
         if (navigator.share) {
           await navigator.share({
