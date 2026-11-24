@@ -22,6 +22,7 @@ export default defineConfig(() => {
           ayo: path.resolve(__dirname, 'ayo/index.html'),
           rules: path.resolve(__dirname, 'rules/index.html'),
           ayoRules: path.resolve(__dirname, 'ayo-rules/index.html'),
+          privacy: path.resolve(__dirname, 'privacy/index.html'),
         },
       },
     },
